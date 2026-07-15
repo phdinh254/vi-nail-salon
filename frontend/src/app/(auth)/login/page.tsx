@@ -8,6 +8,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/providers/toast-provider";
+import { login } from "@/services/auth.service";
 import { isValidVietnamesePhone } from "@/utils/format";
 
 export default function LoginPage() {
@@ -17,7 +18,7 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<{ phone?: string; password?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const nextErrors: typeof errors = {};
     if (!isValidVietnamesePhone(phone)) nextErrors.phone = "Số điện thoại không hợp lệ.";
@@ -26,14 +27,15 @@ export default function LoginPage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    const result = await login({ phone, password });
+    setIsSubmitting(false);
+    if (!result.ok) {
       showToast({
         variant: "info",
         title: "Giao diện xem trước",
         description: "Đăng nhập sẽ hoạt động khi kết nối hệ thống xác thực thật.",
       });
-    }, 800);
+    }
   }
 
   return (

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BookingStepLayout } from "@/features/booking/booking-step-layout";
 import { useBooking } from "@/features/booking/booking-context";
 import { useCountdown } from "@/hooks/use-countdown";
+import { resendOtp, sendOtp, verifyOtp } from "@/services/auth.service";
 import { maskPhoneNumber } from "@/utils/format";
 
 const OTP_LENGTH = 6;
@@ -57,8 +58,14 @@ function VerifyOtpContent() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => setSendState("sent"), 700);
-    return () => clearTimeout(timer);
+    let cancelled = false;
+    sendOtp(state.customerPhone).then(() => {
+      if (!cancelled) setSendState("sent");
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (selectedServices.length === 0 || !state.customerPhone) return null;
@@ -72,12 +79,12 @@ function VerifyOtpContent() {
     setVerifyState("idle");
     setIncomplete(false);
     setSendState("sending");
-    setTimeout(() => setSendState("sent"), 700);
+    resendOtp(state.customerPhone).then(() => setSendState("sent"));
     reset(RESEND_SECONDS);
     expiry.reset(300);
   }
 
-  function handleVerify() {
+  async function handleVerify() {
     if (!isOnline || demoOverride === "network-error") {
       setVerifyState("error");
       return;
@@ -89,15 +96,23 @@ function VerifyOtpContent() {
     setIncomplete(false);
     setAttempts((a) => a + 1);
     setVerifyState("verifying");
-    setTimeout(() => {
-      if (demoOverride === "invalid") {
-        setVerifyState("error");
-        return;
-      }
-      setVerifyState("success");
-      update("otpVerified", true);
-      setTimeout(() => router.push("/booking/review"), 700);
-    }, 900);
+
+    if (demoOverride === "invalid") {
+      // Chỉ để xem trước giao diện lỗi cho QA — không đi qua lớp service thật.
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      setVerifyState("error");
+      return;
+    }
+
+    const result = await verifyOtp(state.customerPhone, otp);
+    if (!result.ok) {
+      setIncomplete(result.reason === "incomplete");
+      setVerifyState(result.reason === "incomplete" ? "idle" : "error");
+      return;
+    }
+    setVerifyState("success");
+    update("otpVerified", true);
+    setTimeout(() => router.push("/booking/review"), 700);
   }
 
   return (

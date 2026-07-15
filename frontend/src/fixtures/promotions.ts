@@ -4,7 +4,7 @@ export const promotions: Promotion[] = [
   {
     id: "promo-khach-moi",
     title: "Ưu đãi khách hàng mới",
-    description: "Giảm 15% cho lượt đặt lịch đầu tiên khi trải nghiệm dịch vụ tại Lys Nail Studio.",
+    description: "Giảm 15% cho lượt đặt lịch đầu tiên khi trải nghiệm dịch vụ tại Vi Nail.",
     discountLabel: "-15%",
     validFrom: "2026-07-01",
     validTo: "2026-08-31",

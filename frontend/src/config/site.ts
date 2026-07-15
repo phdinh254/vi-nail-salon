@@ -1,13 +1,13 @@
 export const siteConfig = {
-  brandName: "Lys Nail Studio",
+  brandName: "Vi Nail",
   brandTagline: "Chăm sóc móng tinh tế cho phái đẹp",
-  brandShortName: "Lys Nail",
+  brandShortName: "Vi Nail",
   description:
     "Tiệm nail một chi nhánh tại Việt Nam, cung cấp dịch vụ manicure, pedicure, gel và nail art theo tiêu chuẩn cao cấp.",
   phone: "0909 123 456",
   phoneHref: "tel:0909123456",
   zalo: "0909 123 456",
-  email: "hello@lysnailstudio.vn",
+  email: "hello@vinail.vn",
   address: "12 Nguyễn Huệ, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh",
   mapEmbedUrl:
     "https://www.google.com/maps?q=12+Nguy%E1%BB%85n+Hu%E1%BB%87,+Qu%E1%BA%ADn+1,+TP.HCM&output=embed",

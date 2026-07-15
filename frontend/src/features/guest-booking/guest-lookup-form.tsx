@@ -30,7 +30,7 @@ export function GuestLookupForm() {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-6 shadow-soft-sm">
       <Field id="lookup-code" label="Mã lịch hẹn" required>
-        <Input id="lookup-code" value={code} placeholder="LN-1002" onChange={(e) => setCode(e.target.value)} />
+        <Input id="lookup-code" value={code} placeholder="VN-1002" onChange={(e) => setCode(e.target.value)} />
       </Field>
       <Field id="lookup-phone" label="Số điện thoại đã đặt lịch" required>
         <PhoneInput id="lookup-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
@@ -40,7 +40,7 @@ export function GuestLookupForm() {
         Tra cứu lịch hẹn
       </Button>
       <p className="text-caption text-text-muted">
-        Dữ liệu minh họa để xem trước giao diện: mã <strong>LN-1002</strong>, số điện thoại{" "}
+        Dữ liệu minh họa để xem trước giao diện: mã <strong>VN-1002</strong>, số điện thoại{" "}
         <strong>0977445566</strong>.
       </p>
       {notFound ? (

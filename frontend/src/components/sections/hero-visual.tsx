@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { PlaceholderImage } from "@/components/ui/placeholder-image";
+import { siteConfig } from "@/config/site";
 
 export function HeroVisual() {
   const ref = useRef<HTMLDivElement>(null);
@@ -27,7 +28,7 @@ export function HeroVisual() {
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
         className="col-span-2 transition-transform duration-300 ease-out"
       >
-        <PlaceholderImage label="Ảnh không gian tiệm Lys Nail Studio" ratio="aspect-[16/10]" />
+        <PlaceholderImage label={`Ảnh không gian tiệm ${siteConfig.brandName}`} ratio="aspect-[16/10]" />
       </div>
       <div
         style={{ transform: `translate(${offset.x * 1.4}px, ${offset.y * 1.4}px)` }}

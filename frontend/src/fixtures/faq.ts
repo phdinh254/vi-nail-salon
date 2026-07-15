@@ -37,6 +37,6 @@ export const faqItems: FaqItem[] = [
   {
     id: "faq-mot-chi-nhanh",
     question: "Tiệm có nhiều chi nhánh không?",
-    answer: "Hiện tại Lys Nail Studio chỉ có một chi nhánh duy nhất tại địa chỉ được ghi ở trang Liên hệ.",
+    answer: "Hiện tại Vi Nail chỉ có một chi nhánh duy nhất tại địa chỉ được ghi ở trang Liên hệ.",
   },
 ];

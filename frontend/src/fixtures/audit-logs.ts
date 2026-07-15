@@ -7,7 +7,7 @@ export const auditLogs: AuditLogEntry[] = [
     actorRole: "ADMIN",
     action: "Xác nhận lịch hẹn",
     resourceType: "Lịch hẹn",
-    resourceLabel: "LN-1002",
+    resourceLabel: "VN-1002",
     createdAt: "2026-07-15T08:20:00+07:00",
   },
   {
@@ -16,7 +16,7 @@ export const auditLogs: AuditLogEntry[] = [
     actorRole: "STAFF",
     action: "Check-in khách hàng",
     resourceType: "Lịch hẹn",
-    resourceLabel: "LN-1003",
+    resourceLabel: "VN-1003",
     createdAt: "2026-07-15T08:55:00+07:00",
   },
   {
@@ -34,7 +34,7 @@ export const auditLogs: AuditLogEntry[] = [
     actorRole: "SYSTEM",
     action: "Đánh dấu khách không đến",
     resourceType: "Lịch hẹn",
-    resourceLabel: "LN-1005",
+    resourceLabel: "VN-1005",
     createdAt: "2026-07-14T09:20:00+07:00",
   },
   {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ListChecks, Users, CalendarClock, ShieldCheck } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = { title: "Đặt lịch" };
 
@@ -16,7 +17,7 @@ const highlights = [
 export default function BookingIntroPage() {
   return (
     <Container className="flex flex-col items-center py-14 text-center sm:py-20">
-      <h1 className="text-h1 font-serif font-semibold text-text">Đặt lịch tại Lys Nail Studio</h1>
+      <h1 className="text-h1 font-serif font-semibold text-text">Đặt lịch tại {siteConfig.brandName}</h1>
       <p className="mt-3 max-w-lg text-body-lg text-text-muted">
         Không cần tạo tài khoản. Chỉ mất khoảng 2 phút với vài bước đơn giản.
       </p>

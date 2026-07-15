@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/providers/toast-provider";
+import { register } from "@/services/auth.service";
 import { isValidVietnamesePhone } from "@/utils/format";
 
 type Errors = Partial<Record<"name" | "phone" | "password" | "confirmPassword" | "terms", string>>;
@@ -20,7 +21,7 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Errors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const nextErrors: Errors = {};
     if (!values.name.trim()) nextErrors.name = "Vui lòng nhập họ tên.";
@@ -32,14 +33,15 @@ export default function RegisterPage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    const result = await register({ name: values.name, phone: values.phone, password: values.password });
+    setIsSubmitting(false);
+    if (!result.ok) {
       showToast({
         variant: "info",
         title: "Giao diện xem trước",
         description: "Tạo tài khoản sẽ hoạt động khi kết nối hệ thống xác thực thật.",
       });
-    }, 800);
+    }
   }
 
   return (

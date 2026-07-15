@@ -7,6 +7,7 @@ import { Field, fieldDescribedBy } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
+import { siteConfig } from "@/config/site";
 import { isValidVietnamesePhone } from "@/utils/format";
 
 type FormState = { name: string; phone: string; message: string };
@@ -40,7 +41,7 @@ export function ContactForm() {
         <CheckCircle2 className="size-10 text-success" aria-hidden="true" />
         <p className="text-body font-semibold text-text">Đã gửi yêu cầu liên hệ</p>
         <p className="max-w-sm text-body-sm text-text-muted">
-          Cảm ơn bạn đã liên hệ. Đội ngũ Lys Nail Studio sẽ phản hồi trong thời gian sớm nhất.
+          Cảm ơn bạn đã liên hệ. Đội ngũ {siteConfig.brandName} sẽ phản hồi trong thời gian sớm nhất.
         </p>
       </div>
     );

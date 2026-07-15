@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Field, fieldDescribedBy } from "@/components/ui/field";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Button } from "@/components/ui/button";
+import { requestPasswordReset } from "@/services/auth.service";
 import { isValidVietnamesePhone } from "@/utils/format";
 
 export default function ForgotPasswordPage() {
@@ -15,7 +16,7 @@ export default function ForgotPasswordPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValidVietnamesePhone(phone)) {
       setError("Số điện thoại không hợp lệ.");
@@ -23,10 +24,9 @@ export default function ForgotPasswordPage() {
     }
     setError(undefined);
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setSent(true);
-    }, 800);
+    await requestPasswordReset(phone);
+    setIsSubmitting(false);
+    setSent(true);
   }
 
   if (sent) {

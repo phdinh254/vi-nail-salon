@@ -8,6 +8,7 @@ import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
 import { useBooking } from "@/features/booking/booking-context";
 import { getStaffById } from "@/fixtures/staff";
+import { siteConfig } from "@/config/site";
 import { formatCurrencyVND, formatDateVN, formatDurationMinutes } from "@/utils/format";
 
 function buildIcsFile(title: string, start: Date, minutes: number, location: string) {
@@ -29,7 +30,7 @@ function buildIcsFile(title: string, start: Date, minutes: number, location: str
 export default function BookingSuccessPage() {
   const router = useRouter();
   const { state, selectedServices, totalPrice, totalDurationMinutes, reset } = useBooking();
-  const [code] = useState(() => `LN-${Date.now().toString().slice(-6)}`);
+  const [code] = useState(() => `VN-${Date.now().toString().slice(-6)}`);
 
   useEffect(() => {
     if (selectedServices.length === 0 || !state.otpVerified || !state.date) {
@@ -44,7 +45,7 @@ export default function BookingSuccessPage() {
       selectedServices.map((s) => s.name).join(", "),
       state.date,
       totalDurationMinutes,
-      "Lys Nail Studio",
+      siteConfig.brandName,
     );
     return `data:text/calendar;charset=utf-8,${encodeURIComponent(ics)}`;
   }, [state.date, selectedServices, totalDurationMinutes]);
