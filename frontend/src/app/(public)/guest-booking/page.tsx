@@ -9,17 +9,28 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { siteConfig } from "@/config/site";
 import { lookupGuestAppointment, canModifyStatuses } from "@/features/guest-booking/lookup";
 import { GuestLookupForm } from "@/features/guest-booking/guest-lookup-form";
+import { useApi } from "@/hooks/use-api";
 import { formatCurrencyVND, formatDateVN, formatDurationMinutes, formatTimeVN } from "@/utils/format";
 
 function GuestBookingContent() {
   const searchParams = useSearchParams();
   const code = searchParams.get("code");
   const phone = searchParams.get("phone");
+  const hasQuery = Boolean(code && phone);
 
-  if (!code || !phone) {
+  const {
+    data: appointment,
+    isLoading,
+    error,
+  } = useApi(() => lookupGuestAppointment(code as string, phone as string), [code, phone], {
+    enabled: hasQuery,
+  });
+
+  if (!hasQuery) {
     return (
       <Container className="max-w-lg py-10 sm:py-14">
         <PageHeader title="Tra cứu lịch hẹn" description="Nhập mã lịch hẹn và số điện thoại đã dùng khi đặt lịch." />
@@ -30,12 +41,22 @@ function GuestBookingContent() {
     );
   }
 
-  const appointment = lookupGuestAppointment(code, phone);
+  if (isLoading) {
+    return (
+      <Container className="max-w-2xl py-10 sm:py-14">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="mt-4 h-64 w-full rounded-lg" />
+      </Container>
+    );
+  }
 
-  if (!appointment) {
+  if (error || !appointment) {
     return (
       <Container className="max-w-lg py-10 sm:py-14">
-        <ErrorState title="Không tìm thấy lịch hẹn" description="Liên kết hoặc thông tin tra cứu không còn hợp lệ." />
+        <ErrorState
+          title="Không tìm thấy lịch hẹn"
+          description={error ?? "Liên kết hoặc thông tin tra cứu không còn hợp lệ."}
+        />
         <div className="mt-6 text-center">
           <Button asChild variant="secondary">
             <Link href="/guest-booking">Tra cứu lại</Link>
@@ -46,7 +67,7 @@ function GuestBookingContent() {
   }
 
   const canModify = canModifyStatuses.includes(appointment.status);
-  const query = `code=${encodeURIComponent(appointment.code)}&phone=${encodeURIComponent(phone)}`;
+  const query = `code=${encodeURIComponent(appointment.code)}&phone=${encodeURIComponent(phone as string)}`;
 
   return (
     <Container className="max-w-2xl py-10 sm:py-14">

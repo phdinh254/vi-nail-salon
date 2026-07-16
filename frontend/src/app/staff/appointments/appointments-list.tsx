@@ -11,10 +11,11 @@ import { formatDateVN, formatTimeVN, maskPhoneNumber } from "@/utils/format";
 export function StaffAppointmentsList({ appointments }: { appointments: Appointment[] }) {
   const [tab, setTab] = useState("today");
 
-  const todayKey = new Date("2026-07-15").toDateString();
+  const now = new Date();
+  const todayKey = now.toDateString();
   const today = appointments.filter((a) => new Date(a.startAt).toDateString() === todayKey);
   const upcoming = appointments.filter(
-    (a) => new Date(a.startAt) > new Date("2026-07-15") && ["PENDING_CONFIRMATION", "CONFIRMED"].includes(a.status),
+    (a) => new Date(a.startAt) > now && ["PENDING_CONFIRMATION", "CONFIRMED"].includes(a.status),
   );
   const completed = appointments.filter((a) => a.status === "COMPLETED");
   const cancelled = appointments.filter((a) => a.status === "CANCELLED" || a.status === "NO_SHOW");

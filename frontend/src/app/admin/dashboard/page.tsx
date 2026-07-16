@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import {
   CalendarCheck,
@@ -11,23 +13,56 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { Badge } from "@/components/ui/badge";
-import { appointments } from "@/fixtures/appointments";
-import { staffMembers } from "@/fixtures/staff";
-import { services } from "@/fixtures/services";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useApi } from "@/hooks/use-api";
+import { listAllAppointments } from "@/services/appointment.service";
+import { listStaff, listServices } from "@/services/catalog.service";
 import { appointmentStatusLabel, type AppointmentStatus } from "@/types/appointment";
 import { formatCurrencyVND, formatTimeVN } from "@/utils/format";
-
-const TODAY = new Date("2026-07-15");
 
 function isSameDay(a: Date, b: Date) {
   return a.toDateString() === b.toDateString();
 }
 
 export default function AdminDashboardPage() {
-  const todayAppointments = appointments.filter((a) => isSameDay(new Date(a.startAt), TODAY));
+  const today = new Date();
+  const appointmentsState = useApi(listAllAppointments, []);
+  const staffState = useApi(listStaff, []);
+  const servicesState = useApi(listServices, []);
+
+  const isLoading = appointmentsState.isLoading || staffState.isLoading || servicesState.isLoading;
+  const error = appointmentsState.error ?? staffState.error ?? servicesState.error;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageHeader title="Tổng quan" description="Hoạt động của tiệm hôm nay." />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageHeader title="Tổng quan" description="Hoạt động của tiệm hôm nay." />
+        <p className="text-body-sm text-error">{error}</p>
+      </div>
+    );
+  }
+
+  const appointments = appointmentsState.data ?? [];
+  const staffMembers = staffState.data ?? [];
+  const services = servicesState.data ?? [];
+
+  const todayAppointments = appointments.filter((a) => isSameDay(new Date(a.startAt), today));
   const pending = todayAppointments.filter((a) => a.status === "PENDING_CONFIRMATION");
-  const cancelled = appointments.filter((a) => a.status === "CANCELLED" && isSameDay(new Date(a.startAt), TODAY));
-  const noShow = appointments.filter((a) => a.status === "NO_SHOW" && isSameDay(new Date(a.startAt), TODAY));
+  const cancelled = appointments.filter((a) => a.status === "CANCELLED" && isSameDay(new Date(a.startAt), today));
+  const noShow = appointments.filter((a) => a.status === "NO_SHOW" && isSameDay(new Date(a.startAt), today));
   const upcomingToday = todayAppointments
     .filter((a) => ["CONFIRMED", "CHECKED_IN"].includes(a.status))
     .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
@@ -36,7 +71,7 @@ export default function AdminDashboardPage() {
     .filter((a) => a.status === "COMPLETED")
     .reduce((sum, a) => sum + a.totalPrice, 0);
   const revenueMonth = appointments
-    .filter((a) => a.status === "COMPLETED" && new Date(a.startAt).getMonth() === TODAY.getMonth())
+    .filter((a) => a.status === "COMPLETED" && new Date(a.startAt).getMonth() === today.getMonth())
     .reduce((sum, a) => sum + a.totalPrice, 0);
 
   const statusCounts = todayAppointments.reduce<Record<string, number>>((acc, a) => {
@@ -52,9 +87,11 @@ export default function AdminDashboardPage() {
     count: todayAppointments.filter((a) => a.staffId === staff.id).length,
   }));
 
+  const dateLabel = today.toLocaleDateString("vi-VN");
+
   return (
     <div className="flex flex-col gap-8">
-      <PageHeader title="Tổng quan" description="Hoạt động của tiệm hôm nay, 15/07/2026." />
+      <PageHeader title="Tổng quan" description={`Hoạt động của tiệm hôm nay, ${dateLabel}.`} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Lịch hôm nay" value={String(todayAppointments.length)} icon={CalendarCheck} />
@@ -65,7 +102,7 @@ export default function AdminDashboardPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <StatCard label="Doanh thu hôm nay" value={formatCurrencyVND(revenueToday)} icon={Wallet} tone="success" trend="Tính trên lịch đã hoàn thành" />
-        <StatCard label="Doanh thu tháng 7/2026" value={formatCurrencyVND(revenueMonth)} icon={Wallet} tone="success" />
+        <StatCard label="Doanh thu tháng này" value={formatCurrencyVND(revenueMonth)} icon={Wallet} tone="success" />
       </div>
 
       {pending.length > 0 ? (

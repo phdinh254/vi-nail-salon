@@ -1,14 +1,22 @@
+"use client";
+
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
-import { demoStaffSession } from "@/fixtures/session";
-import { getAppointmentsByStaffId } from "@/fixtures/appointments";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/stores/auth-store";
+import { useApi } from "@/hooks/use-api";
+import { listAppointmentsByStaff } from "@/services/appointment.service";
 import { formatDateVN, maskPhoneNumber } from "@/utils/format";
 
 export default function StaffCustomersPage() {
-  const appointments = getAppointmentsByStaffId(demoStaffSession.staffId as string);
+  const { user } = useAuth();
+  const { data: appointments, isLoading, error } = useApi(listAppointmentsByStaff, [], {
+    enabled: Boolean(user),
+  });
 
+  const list = appointments ?? [];
   const byPhone = new Map<string, { name: string; phone: string; visits: number; lastVisit: Date; lastService: string }>();
-  for (const appointment of appointments) {
+  for (const appointment of list) {
     const existing = byPhone.get(appointment.customerPhone);
     const startAt = new Date(appointment.startAt);
     if (!existing || startAt > existing.lastVisit) {
@@ -29,7 +37,15 @@ export default function StaffCustomersPage() {
     <div className="flex flex-col gap-6">
       <PageHeader title="Khách hàng đã phục vụ" description="Danh sách khách hàng trong các lịch hẹn được phân công cho bạn." />
 
-      {customers.length === 0 ? (
+      {isLoading ? (
+        <div className="flex flex-col gap-2.5">
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+          <Skeleton className="h-16 w-full" />
+        </div>
+      ) : error ? (
+        <EmptyState title="Không thể tải danh sách khách hàng" description={error} />
+      ) : customers.length === 0 ? (
         <EmptyState title="Chưa có khách hàng nào" />
       ) : (
         <div className="overflow-hidden rounded-lg border border-border bg-surface">

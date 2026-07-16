@@ -5,6 +5,7 @@ import { Bell, BellOff, CalendarCheck, Tag, Settings } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/utils/cn";
+import { markNotificationRead } from "@/services/notification.service";
 import type { NotificationItem } from "@/types/notification";
 import { formatDateVN, formatTimeVN } from "@/utils/format";
 
@@ -17,6 +18,14 @@ export function NotificationsClient({ initialItems }: { initialItems: Notificati
     return <EmptyState icon={BellOff} title="Không có thông báo nào" />;
   }
 
+  function handleOpen(item: NotificationItem) {
+    if (item.isRead) return;
+    setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)));
+    markNotificationRead(item.id).catch(() => {
+      // Đánh dấu đã đọc chỉ là tiện ích UI — bỏ qua lỗi mạng, không làm gián đoạn người dùng.
+    });
+  }
+
   return (
     <ul className="flex flex-col gap-2.5">
       {items.map((item) => {
@@ -25,7 +34,7 @@ export function NotificationsClient({ initialItems }: { initialItems: Notificati
           <li key={item.id}>
             <button
               type="button"
-              onClick={() => setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, isRead: true } : n)))}
+              onClick={() => handleOpen(item)}
               className={cn(
                 "flex w-full items-start gap-3 rounded-lg border p-4 text-left transition-colors duration-fast",
                 item.isRead ? "border-border bg-surface" : "border-primary/30 bg-accent/10",

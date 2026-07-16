@@ -23,9 +23,9 @@ import {
   listPromotions,
   listReviews,
   listFaq,
+  listNailDesigns,
+  listStaff,
 } from "@/services/catalog.service";
-import { nailDesigns } from "@/fixtures/nail-designs";
-import { staffMembers } from "@/fixtures/staff";
 import { siteConfig } from "@/config/site";
 
 const bookingSteps = [
@@ -35,12 +35,16 @@ const bookingSteps = [
   { icon: PartyPopper, title: "Tận hưởng dịch vụ", description: "Đến tiệm đúng giờ hẹn và tận hưởng trải nghiệm." },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default async function LandingPage() {
-  const [featuredServices, promotions, reviews, faqItems] = await Promise.all([
+  const [featuredServices, promotions, reviews, faqItems, nailDesigns, staffMembers] = await Promise.all([
     listFeaturedServices(),
     listPromotions(),
     listReviews(),
     listFaq(),
+    listNailDesigns(),
+    listStaff(),
   ]);
   const featuredDesigns = nailDesigns.slice(0, 4);
   const featuredStaff = staffMembers.slice(0, 3);

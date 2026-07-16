@@ -6,15 +6,23 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog } from "@/components/ui/dialog";
 import { StatusBadge } from "@/components/ui/status-badge";
 import type { AdminCustomer } from "@/types/customer";
-import { getAppointmentsByPhone } from "@/fixtures/appointments";
+import { useApi } from "@/hooks/use-api";
+import { listAdminCustomers } from "@/services/admin.service";
+import { listAllAppointments } from "@/services/appointment.service";
 import { formatDateVN, formatTimeVN } from "@/utils/format";
 
-export function AdminCustomersClient({ customers }: { customers: AdminCustomer[] }) {
+export function AdminCustomersClient() {
+  const customersState = useApi(listAdminCustomers, []);
+  const appointmentsState = useApi(listAllAppointments, []);
   const [query, setQuery] = useState("");
   const [target, setTarget] = useState<AdminCustomer | null>(null);
+
+  const customers = useMemo(() => customersState.data ?? [], [customersState.data]);
+  const appointments = useMemo(() => appointmentsState.data ?? [], [appointmentsState.data]);
 
   const filtered = useMemo(
     () =>
@@ -22,6 +30,11 @@ export function AdminCustomersClient({ customers }: { customers: AdminCustomer[]
         (c) => c.name.toLowerCase().includes(query.toLowerCase()) || c.phone.includes(query),
       ),
     [customers, query],
+  );
+
+  const targetAppointments = useMemo(
+    () => (target ? appointments.filter((a) => a.customerPhone === target.phone) : []),
+    [appointments, target],
   );
 
   const columns: DataTableColumn<AdminCustomer>[] = [
@@ -42,6 +55,19 @@ export function AdminCustomersClient({ customers }: { customers: AdminCustomer[]
       ),
     },
   ];
+
+  if (customersState.isLoading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-10 w-full max-w-sm" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (customersState.error) {
+    return <p className="text-body-sm text-error">{customersState.error}</p>;
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -68,7 +94,7 @@ export function AdminCustomersClient({ customers }: { customers: AdminCustomer[]
           <>
             {target.note ? <p className="mb-4 rounded-md bg-bg-subtle p-3 text-body-sm text-text-muted">Ghi chú: {target.note}</p> : null}
             <ul className="flex flex-col gap-2.5">
-              {getAppointmentsByPhone(target.phone).map((appointment) => (
+              {targetAppointments.map((appointment) => (
                 <li key={appointment.id} className="flex items-center justify-between text-body-sm">
                   <span className="text-text">
                     {formatDateVN(new Date(appointment.startAt))} · {formatTimeVN(new Date(appointment.startAt))}

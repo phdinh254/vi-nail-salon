@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Be_Vietnam_Pro, Playfair_Display } from "next/font/google";
 import { ToastProvider } from "@/components/providers/toast-provider";
+import { AuthProvider } from "@/stores/auth-store";
 import { siteConfig } from "@/config/site";
 import "./globals.css";
 
@@ -37,7 +38,9 @@ export default function RootLayout({
       className={`h-full antialiased ${beVietnamPro.variable} ${playfairDisplay.variable}`}
     >
       <body className="flex min-h-full flex-col bg-bg text-text">
-        <ToastProvider>{children}</ToastProvider>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </body>
     </html>
   );

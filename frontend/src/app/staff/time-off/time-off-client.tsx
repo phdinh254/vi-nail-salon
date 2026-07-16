@@ -8,38 +8,42 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/providers/toast-provider";
+import { requestTimeOff } from "@/services/time-off.service";
+import { ApiError } from "@/lib/api-client";
 import { timeOffStatusLabel, type TimeOffRequest } from "@/fixtures/time-off";
 import { formatDateShortVN } from "@/utils/format";
 
 const statusTone = { PENDING: "warning", APPROVED: "success", REJECTED: "error" } as const;
 
-export function TimeOffClient({ initialRequests }: { initialRequests: TimeOffRequest[] }) {
+export function TimeOffClient({
+  requests,
+  onRequested,
+}: {
+  requests: TimeOffRequest[];
+  onRequested?: () => void;
+}) {
   const { showToast } = useToast();
-  const [requests, setRequests] = useState(initialRequests);
   const [form, setForm] = useState({ startDate: "", endDate: "", reason: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.startDate || !form.endDate || !form.reason.trim()) return;
     setIsSubmitting(true);
-    setTimeout(() => {
-      setRequests((prev) => [
-        {
-          id: `off-${prev.length + 1}`,
-          staffId: "staff-ngoc-bich",
-          startDate: form.startDate,
-          endDate: form.endDate,
-          reason: form.reason,
-          status: "PENDING",
-          createdAt: new Date().toISOString(),
-        },
-        ...prev,
-      ]);
+    try {
+      await requestTimeOff(form);
       setForm({ startDate: "", endDate: "", reason: "" });
-      setIsSubmitting(false);
       showToast({ variant: "success", title: "Đã gửi yêu cầu nghỉ phép", description: "Quản lý sẽ xem xét và phản hồi sớm." });
-    }, 700);
+      onRequested?.();
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Gửi yêu cầu thất bại",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (

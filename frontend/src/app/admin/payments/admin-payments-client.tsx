@@ -7,6 +7,10 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast } from "@/components/providers/toast-provider";
+import { refundPayment } from "@/services/admin.service";
+import { ApiError } from "@/lib/api-client";
 import {
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
@@ -16,10 +20,13 @@ import {
 } from "@/types/payment";
 import { formatCurrencyVND, formatDateShortVN, formatTimeVN } from "@/utils/format";
 
-export function AdminPaymentsClient({ payments }: { payments: Payment[] }) {
+export function AdminPaymentsClient({ payments, onRefunded }: { payments: Payment[]; onRefunded?: () => void }) {
+  const { showToast } = useToast();
   const [query, setQuery] = useState("");
   const [method, setMethod] = useState("ALL");
   const [status, setStatus] = useState("ALL");
+  const [refundTarget, setRefundTarget] = useState<Payment | null>(null);
+  const [isRefunding, setIsRefunding] = useState(false);
 
   const filtered = useMemo(
     () =>
@@ -33,6 +40,25 @@ export function AdminPaymentsClient({ payments }: { payments: Payment[] }) {
       }),
     [payments, query, method, status],
   );
+
+  async function handleRefund() {
+    if (!refundTarget) return;
+    setIsRefunding(true);
+    try {
+      await refundPayment(refundTarget.id);
+      showToast({ variant: "success", title: "Đã hoàn tiền", description: refundTarget.appointmentCode });
+      onRefunded?.();
+      setRefundTarget(null);
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Không thể hoàn tiền",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    } finally {
+      setIsRefunding(false);
+    }
+  }
 
   const columns: DataTableColumn<Payment>[] = [
     { header: "Mã lịch hẹn", cell: (p) => <span className="font-medium">{p.appointmentCode}</span> },
@@ -54,6 +80,19 @@ export function AdminPaymentsClient({ payments }: { payments: Payment[] }) {
           {formatCurrencyVND(p.amount)}
         </span>
       ),
+    },
+    {
+      header: "",
+      cell: (p) =>
+        p.status === "PAID" ? (
+          <button
+            type="button"
+            onClick={() => setRefundTarget(p)}
+            className="text-body-sm font-medium text-primary hover:underline"
+          >
+            Hoàn tiền
+          </button>
+        ) : null,
     },
   ];
 
@@ -89,6 +128,17 @@ export function AdminPaymentsClient({ payments }: { payments: Payment[] }) {
       ) : (
         <DataTable columns={columns} rows={filtered} />
       )}
+
+      <ConfirmDialog
+        open={Boolean(refundTarget)}
+        onClose={() => setRefundTarget(null)}
+        onConfirm={handleRefund}
+        title="Xác nhận hoàn tiền"
+        description={refundTarget ? `Hoàn tiền giao dịch ${refundTarget.appointmentCode} của khách ${refundTarget.customerName}?` : undefined}
+        destructive
+        confirmLabel="Xác nhận hoàn tiền"
+        isLoading={isRefunding}
+      />
     </div>
   );
 }

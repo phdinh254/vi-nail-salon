@@ -1,14 +1,48 @@
+"use client";
+
 import { Wallet, CalendarCheck, UserX, Users2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { RevenueTrendChart } from "@/app/admin/reports/reports-client";
-import { appointments } from "@/fixtures/appointments";
-import { staffMembers } from "@/fixtures/staff";
+import { useApi } from "@/hooks/use-api";
+import { listAllAppointments } from "@/services/appointment.service";
+import { listStaff } from "@/services/catalog.service";
 import { formatCurrencyVND } from "@/utils/format";
 
-const TODAY = new Date("2026-07-15");
-
 export default function AdminReportsPage() {
+  const appointmentsState = useApi(listAllAppointments, []);
+  const staffState = useApi(listStaff, []);
+
+  const isLoading = appointmentsState.isLoading || staffState.isLoading;
+  const error = appointmentsState.error ?? staffState.error;
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageHeader title="Báo cáo" description="Tổng hợp doanh thu và hiệu suất dựa trên lịch hẹn đã hoàn thành." />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-8">
+        <PageHeader title="Báo cáo" description="Tổng hợp doanh thu và hiệu suất dựa trên lịch hẹn đã hoàn thành." />
+        <p className="text-body-sm text-error">{error}</p>
+      </div>
+    );
+  }
+
+  const appointments = appointmentsState.data ?? [];
+  const staffMembers = staffState.data ?? [];
+  const today = new Date();
+
   const completed = appointments.filter((a) => a.status === "COMPLETED");
   const noShow = appointments.filter((a) => a.status === "NO_SHOW");
   const totalRevenue = completed.reduce((sum, a) => sum + a.totalPrice, 0);
@@ -52,7 +86,7 @@ export default function AdminReportsPage() {
       </div>
 
       <section className="rounded-lg border border-border bg-surface p-5">
-        <RevenueTrendChart completedAppointments={completed} anchorDate={TODAY} />
+        <RevenueTrendChart completedAppointments={completed} anchorDate={today} />
       </section>
 
       <div className="grid gap-8 lg:grid-cols-2">
@@ -95,11 +129,6 @@ export default function AdminReportsPage() {
           </ul>
         </section>
       </div>
-
-      <p className="text-caption text-text-muted">
-        Số liệu tính trên dữ liệu minh họa hiện có. Báo cáo theo khoảng ngày tùy chọn và xuất file sẽ bổ sung khi kết
-        nối dữ liệu vận hành thật.
-      </p>
     </div>
   );
 }

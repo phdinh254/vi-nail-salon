@@ -8,6 +8,8 @@ import { PlaceholderImage } from "@/components/ui/placeholder-image";
 import { getNailDesign, getServiceByIdAsync } from "@/services/catalog.service";
 import { nailDesignStyleLabel, nailDesignColorLabel } from "@/types/nail-design";
 
+export const dynamic = "force-dynamic";
+
 export default async function NailDesignDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const design = await getNailDesign(id);

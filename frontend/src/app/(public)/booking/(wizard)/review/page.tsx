@@ -7,13 +7,26 @@ import { CalendarDays, Clock, User, Phone, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BookingStepLayout } from "@/features/booking/booking-step-layout";
 import { useBooking } from "@/features/booking/booking-context";
-import { getStaffById } from "@/fixtures/staff";
-import { getNailDesignById } from "@/fixtures/nail-designs";
+import { useAuth } from "@/stores/auth-store";
+import { useToast } from "@/components/providers/toast-provider";
+import { useApi } from "@/hooks/use-api";
+import { getStaffMember, getNailDesign } from "@/services/catalog.service";
+import { createGuestAppointment } from "@/services/appointment.service";
+import { ApiError } from "@/lib/api-client";
 import { formatCurrencyVND, formatDateVN, formatDurationMinutes } from "@/utils/format";
+
+function buildStartAt(date: Date, time: string): string {
+  const [hours, minutes] = time.split(":").map(Number);
+  const combined = new Date(date);
+  combined.setHours(hours, minutes, 0, 0);
+  return combined.toISOString();
+}
 
 export default function ReviewStepPage() {
   const router = useRouter();
-  const { state, selectedServices, totalPrice, totalDurationMinutes } = useBooking();
+  const { state, selectedServices, totalPrice, totalDurationMinutes, setCreatedAppointment } = useBooking();
+  const { bookingToken } = useAuth();
+  const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -22,14 +35,58 @@ export default function ReviewStepPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const hasStaffId = Boolean(state.staffId && state.staffId !== "ANY");
+  const { data: staff } = useApi(
+    () => getStaffMember(state.staffId as string),
+    [state.staffId],
+    { enabled: hasStaffId },
+  );
+  const hasNailDesign = Boolean(state.nailDesignId);
+  const { data: nailDesign } = useApi(
+    () => getNailDesign(state.nailDesignId as string),
+    [state.nailDesignId],
+    { enabled: hasNailDesign },
+  );
+
   if (selectedServices.length === 0 || !state.otpVerified || !state.date) return null;
 
-  const staff = state.staffId && state.staffId !== "ANY" ? getStaffById(state.staffId) : null;
-  const nailDesign = state.nailDesignId ? getNailDesignById(state.nailDesignId) : null;
+  async function handleConfirm() {
+    if (!state.date || !state.time) return;
+    if (!bookingToken) {
+      showToast({
+        variant: "error",
+        title: "Phiên xác minh đã hết hạn",
+        description: "Vui lòng xác minh lại số điện thoại để tiếp tục.",
+      });
+      router.push("/booking/verify-otp");
+      return;
+    }
 
-  function handleConfirm() {
     setIsSubmitting(true);
-    setTimeout(() => router.push("/booking/success"), 900);
+    try {
+      const appointment = await createGuestAppointment(
+        {
+          customerName: state.customerName,
+          serviceIds: state.serviceIds,
+          staffId: hasStaffId ? (state.staffId as string) : undefined,
+          startAt: buildStartAt(state.date, state.time),
+          nailDesignId: state.nailDesignId ?? undefined,
+          allergyNote: state.allergyNote || undefined,
+          requestNote: state.requestNote || undefined,
+        },
+        bookingToken,
+      );
+      setCreatedAppointment(appointment);
+      router.push("/booking/success");
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Đặt lịch thất bại",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -73,7 +130,7 @@ export default function ReviewStepPage() {
             </li>
             <li className="flex items-center gap-2">
               <User className="size-4 text-primary" aria-hidden="true" />
-              {staff ? staff.name : "Bất kỳ nhân viên nào — tiệm sẽ sắp xếp"}
+              {hasStaffId ? (staff ? staff.name : "...") : "Bất kỳ nhân viên nào — tiệm sẽ sắp xếp"}
             </li>
           </ul>
         </section>

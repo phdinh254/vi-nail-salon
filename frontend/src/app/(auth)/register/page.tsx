@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Field, fieldDescribedBy } from "@/components/ui/field";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -10,12 +11,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/providers/toast-provider";
 import { register } from "@/services/auth.service";
+import { useAuth } from "@/stores/auth-store";
+import { ApiError } from "@/lib/api-client";
 import { isValidVietnamesePhone } from "@/utils/format";
 
 type Errors = Partial<Record<"name" | "phone" | "password" | "confirmPassword" | "terms", string>>;
 
 export default function RegisterPage() {
   const { showToast } = useToast();
+  const { setSession } = useAuth();
+  const router = useRouter();
   const [values, setValues] = useState({ name: "", phone: "", password: "", confirmPassword: "" });
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
@@ -33,14 +38,18 @@ export default function RegisterPage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
-    const result = await register({ name: values.name, phone: values.phone, password: values.password });
-    setIsSubmitting(false);
-    if (!result.ok) {
+    try {
+      const result = await register({ name: values.name, phone: values.phone, password: values.password });
+      setSession(result.accessToken, result.user);
+      router.push("/customer/dashboard");
+    } catch (err) {
       showToast({
-        variant: "info",
-        title: "Giao diện xem trước",
-        description: "Tạo tài khoản sẽ hoạt động khi kết nối hệ thống xác thực thật.",
+        variant: "error",
+        title: "Tạo tài khoản thất bại",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 

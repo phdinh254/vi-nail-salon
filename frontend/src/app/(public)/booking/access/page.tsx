@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, LinkIcon, TimerOff, Ban, AlertCircle } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Button } from "@/components/ui/button";
-import { exchangeMagicLinkToken } from "@/services/auth.service";
+import { exchangeGuestAccessToken } from "@/services/auth.service";
 
 type ExchangeState = "verifying" | "success" | "expired" | "used" | "invalid";
 
@@ -19,29 +19,39 @@ function BookingAccessContent() {
 
   useEffect(() => {
     let cancelled = false;
-    const hasFragmentToken = typeof window !== "undefined" && window.location.hash.length > 1;
 
-    if (demoOverride) {
-      const timer = setTimeout(() => setState(demoOverride), 1000);
-      return () => clearTimeout(timer);
-    }
+    function run() {
+      if (demoOverride) {
+        const timer = setTimeout(() => setState(demoOverride), 1000);
+        return () => clearTimeout(timer);
+      }
 
-    exchangeMagicLinkToken(hasFragmentToken).then((result) => {
-      if (cancelled) return;
-      if (!result.ok) {
-        setState(result.reason);
+      // Token chỉ tồn tại trong URL fragment (#...), không bao giờ đọc vào state hiển thị.
+      const rawToken = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+      if (!rawToken) {
+        setState("invalid");
         return;
       }
-      // Xóa fragment khỏi URL ngay khi trao đổi hoàn tất, trước khi chuyển hướng.
-      window.history.replaceState(null, "", window.location.pathname);
-      setState("success");
-      setTimeout(() => {
-        if (!cancelled) router.push("/guest-booking");
-      }, 600);
-    });
+
+      exchangeGuestAccessToken(rawToken).then((result) => {
+        if (cancelled) return;
+        if (!result.ok) {
+          setState(result.reason);
+          return;
+        }
+        // Xóa fragment khỏi URL ngay khi trao đổi hoàn tất, trước khi chuyển hướng.
+        window.history.replaceState(null, "", window.location.pathname);
+        setState("success");
+        setTimeout(() => {
+          if (!cancelled) router.push("/guest-booking");
+        }, 600);
+      });
+    }
+    const cleanup = run();
 
     return () => {
       cancelled = true;
+      cleanup?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

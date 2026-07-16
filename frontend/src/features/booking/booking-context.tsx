@@ -1,7 +1,10 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
-import { services } from "@/fixtures/services";
+import { useApi } from "@/hooks/use-api";
+import { listServices } from "@/services/catalog.service";
+import type { Service } from "@/types/service";
+import type { Appointment } from "@/types/appointment";
 
 export type BookingState = {
   serviceIds: string[];
@@ -33,9 +36,14 @@ type BookingContextValue = {
   state: BookingState;
   update: <K extends keyof BookingState>(key: K, value: BookingState[K]) => void;
   toggleService: (serviceId: string) => void;
-  selectedServices: typeof services;
+  services: Service[];
+  servicesLoading: boolean;
+  servicesError: string | null;
+  selectedServices: Service[];
   totalPrice: number;
   totalDurationMinutes: number;
+  createdAppointment: Appointment | null;
+  setCreatedAppointment: (appointment: Appointment | null) => void;
   reset: () => void;
 };
 
@@ -43,6 +51,13 @@ const BookingContext = createContext<BookingContextValue | null>(null);
 
 export function BookingProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<BookingState>(initialState);
+  const [createdAppointment, setCreatedAppointment] = useState<Appointment | null>(null);
+  const {
+    data: servicesData,
+    isLoading: servicesLoading,
+    error: servicesError,
+  } = useApi(listServices, []);
+  const services = useMemo(() => servicesData ?? [], [servicesData]);
 
   function update<K extends keyof BookingState>(key: K, value: BookingState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -59,11 +74,12 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
 
   function reset() {
     setState(initialState);
+    setCreatedAppointment(null);
   }
 
   const selectedServices = useMemo(
     () => services.filter((service) => state.serviceIds.includes(service.id)),
-    [state.serviceIds],
+    [services, state.serviceIds],
   );
   const totalPrice = useMemo(
     () => selectedServices.reduce((sum, service) => sum + service.priceFrom, 0),
@@ -75,8 +91,30 @@ export function BookingProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ state, update, toggleService, selectedServices, totalPrice, totalDurationMinutes, reset }),
-    [state, selectedServices, totalPrice, totalDurationMinutes],
+    () => ({
+      state,
+      update,
+      toggleService,
+      services,
+      servicesLoading,
+      servicesError,
+      selectedServices,
+      totalPrice,
+      totalDurationMinutes,
+      createdAppointment,
+      setCreatedAppointment,
+      reset,
+    }),
+    [
+      state,
+      services,
+      servicesLoading,
+      servicesError,
+      selectedServices,
+      totalPrice,
+      totalDurationMinutes,
+      createdAppointment,
+    ],
   );
 
   return <BookingContext.Provider value={value}>{children}</BookingContext.Provider>;

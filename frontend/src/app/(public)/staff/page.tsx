@@ -8,6 +8,7 @@ import { StaffCard } from "@/components/domain/staff-card";
 import { listStaff } from "@/services/catalog.service";
 
 export const metadata: Metadata = { title: "Đội ngũ nhân viên" };
+export const dynamic = "force-dynamic";
 
 export default async function StaffPage() {
   const staff = await listStaff();

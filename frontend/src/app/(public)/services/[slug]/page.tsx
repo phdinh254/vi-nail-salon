@@ -11,6 +11,8 @@ import { getService, listStaffForService } from "@/services/catalog.service";
 import { serviceCategoryLabel } from "@/types/service";
 import { formatDurationMinutes, formatPriceRange } from "@/utils/format";
 
+export const dynamic = "force-dynamic";
+
 export default async function ServiceDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const service = await getService(slug);

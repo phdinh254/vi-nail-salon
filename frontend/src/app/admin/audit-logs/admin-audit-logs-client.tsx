@@ -7,10 +7,16 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { AuditLogEntry } from "@/types/audit-log";
+import { useApi } from "@/hooks/use-api";
+import { listAuditLogs } from "@/services/admin.service";
 import { formatDateShortVN, formatTimeVN } from "@/utils/format";
 
-export function AdminAuditLogsClient({ logs }: { logs: AuditLogEntry[] }) {
+export function AdminAuditLogsClient() {
+  const logsState = useApi(listAuditLogs, []);
+  const logs = useMemo(() => logsState.data ?? [], [logsState.data]);
+
   const [query, setQuery] = useState("");
   const [actorRole, setActorRole] = useState("ALL");
 
@@ -19,7 +25,7 @@ export function AdminAuditLogsClient({ logs }: { logs: AuditLogEntry[] }) {
 
   const filtered = useMemo(
     () =>
-      logs.filter((log) => {
+      logs.filter((log: AuditLogEntry) => {
         const matchesQuery =
           log.action.toLowerCase().includes(query.toLowerCase()) || log.resourceLabel.toLowerCase().includes(query.toLowerCase());
         const matchesRole = actorRole === "ALL" || log.actorRole === actorRole;
@@ -45,6 +51,19 @@ export function AdminAuditLogsClient({ logs }: { logs: AuditLogEntry[] }) {
     { header: "Hành động", cell: (l) => l.action },
     { header: "Tài nguyên", cell: (l) => `${l.resourceType} · ${l.resourceLabel}` },
   ];
+
+  if (logsState.isLoading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-10 w-full max-w-sm" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (logsState.error) {
+    return <p className="text-body-sm text-error">{logsState.error}</p>;
+  }
 
   return (
     <div className="flex flex-col gap-5">

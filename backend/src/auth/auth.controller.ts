@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -14,6 +15,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: LoginDto) {
@@ -21,12 +23,14 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('register')
   register(@Body() dto: RegisterDto) {
     return this.authService.registerCustomer(dto.name, dto.phone, dto.password);
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
   requestOtp(@Body() dto: RequestOtpDto) {
@@ -34,6 +38,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
   verifyOtp(@Body() dto: VerifyOtpDto) {
@@ -41,6 +46,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('guest-access/exchange')
   @HttpCode(HttpStatus.OK)
   exchangeGuestAccess(@Body() dto: ExchangeGuestTokenDto) {

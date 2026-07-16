@@ -8,21 +8,40 @@ import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
 import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/ui/error-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { AppointmentCard } from "@/components/domain/appointment-card";
-import { lookupGuestAppointment, canModifyStatuses } from "@/features/guest-booking/lookup";
+import { useToast } from "@/components/providers/toast-provider";
+import { lookupGuestAppointment, cancelGuestAppointment, canModifyStatuses } from "@/features/guest-booking/lookup";
+import { useApi } from "@/hooks/use-api";
+import { ApiError } from "@/lib/api-client";
 
 function CancelContent() {
   const searchParams = useSearchParams();
   const code = searchParams.get("code") ?? "";
   const phone = searchParams.get("phone") ?? "";
-  const appointment = lookupGuestAppointment(code, phone);
+  const { showToast } = useToast();
+
+  const {
+    data: appointment,
+    isLoading: isLoadingAppointment,
+    error: appointmentError,
+  } = useApi(() => lookupGuestAppointment(code, phone), [code, phone], { enabled: Boolean(code && phone) });
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
-  if (!appointment || !canModifyStatuses.includes(appointment.status)) {
+  if (isLoadingAppointment) {
+    return (
+      <Container className="max-w-2xl py-10 sm:py-14">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="mt-4 h-40 w-full rounded-lg" />
+      </Container>
+    );
+  }
+
+  if (!appointment || appointmentError || !canModifyStatuses.includes(appointment.status)) {
     return (
       <Container className="max-w-lg py-14">
         <ErrorState title="Không thể hủy lịch" description="Lịch hẹn không tồn tại hoặc không còn ở trạng thái cho phép hủy." />
@@ -46,6 +65,23 @@ function CancelContent() {
         </Button>
       </Container>
     );
+  }
+
+  async function handleConfirmCancel() {
+    setIsSubmitting(true);
+    try {
+      await cancelGuestAppointment(code, phone);
+      setDialogOpen(false);
+      setDone(true);
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Hủy lịch thất bại",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -76,14 +112,7 @@ function CancelContent() {
       <ConfirmDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onConfirm={() => {
-          setIsSubmitting(true);
-          setTimeout(() => {
-            setIsSubmitting(false);
-            setDialogOpen(false);
-            setDone(true);
-          }, 700);
-        }}
+        onConfirm={handleConfirmCancel}
         title="Xác nhận hủy lịch hẹn"
         description="Bạn sẽ không thể hoàn tác thao tác này. Vui lòng xác nhận nếu chắc chắn muốn hủy."
         confirmLabel="Xác nhận hủy"

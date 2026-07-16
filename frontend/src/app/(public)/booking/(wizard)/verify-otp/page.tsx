@@ -9,6 +9,7 @@ import { BookingStepLayout } from "@/features/booking/booking-step-layout";
 import { useBooking } from "@/features/booking/booking-context";
 import { useCountdown } from "@/hooks/use-countdown";
 import { resendOtp, sendOtp, verifyOtp } from "@/services/auth.service";
+import { useAuth } from "@/stores/auth-store";
 import { maskPhoneNumber } from "@/utils/format";
 
 const OTP_LENGTH = 6;
@@ -21,6 +22,7 @@ function VerifyOtpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { state, update, selectedServices } = useBooking();
+  const { setBookingToken } = useAuth();
 
   const [sendState, setSendState] = useState<"sending" | "sent">("sending");
   const [otp, setOtp] = useState("");
@@ -112,6 +114,7 @@ function VerifyOtpContent() {
     }
     setVerifyState("success");
     update("otpVerified", true);
+    setBookingToken(result.bookingSessionToken);
     setTimeout(() => router.push("/booking/review"), 700);
   }
 

@@ -6,9 +6,11 @@ import { Check, Clock } from "lucide-react";
 import { Tabs } from "@/components/ui/tabs";
 import { SearchInput } from "@/components/ui/search-input";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
 import { BookingStepLayout } from "@/features/booking/booking-step-layout";
 import { useBooking } from "@/features/booking/booking-context";
-import { services } from "@/fixtures/services";
 import { SERVICE_CATEGORIES, serviceCategoryLabel } from "@/types/service";
 import { cn } from "@/utils/cn";
 import { formatDurationMinutes, formatPriceRange } from "@/utils/format";
@@ -16,7 +18,7 @@ import { formatDurationMinutes, formatPriceRange } from "@/utils/format";
 function ServicesStepContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { state, toggleService, update } = useBooking();
+  const { state, toggleService, update, services, servicesLoading, servicesError } = useBooking();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("ALL");
   const [preselected, setPreselected] = useState(false);
@@ -48,7 +50,7 @@ function ServicesStepContent() {
         const matchesQuery = service.name.toLowerCase().includes(query.trim().toLowerCase());
         return matchesCategory && matchesQuery;
       }),
-    [category, query],
+    [services, category, query],
   );
 
   return (
@@ -68,6 +70,21 @@ function ServicesStepContent() {
         />
       </div>
 
+      {servicesLoading ? (
+        <div className="mt-6 flex flex-col gap-2.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-[76px] w-full rounded-lg" />
+          ))}
+        </div>
+      ) : servicesError ? (
+        <div className="mt-6">
+          <ErrorState description={servicesError} />
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState title="Không tìm thấy dịch vụ" description="Vui lòng thử từ khóa hoặc bộ lọc khác." />
+        </div>
+      ) : (
       <ul className="mt-6 flex flex-col gap-2.5">
         {filtered.map((service) => {
           const selected = state.serviceIds.includes(service.id);
@@ -109,6 +126,7 @@ function ServicesStepContent() {
           );
         })}
       </ul>
+      )}
     </BookingStepLayout>
   );
 }

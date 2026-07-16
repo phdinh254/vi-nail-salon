@@ -7,7 +7,7 @@ services:
     environment:
       TZ: Asia/Ho_Chi_Minh
     volumes:
-      - webapp_nail_postgres_data:/var/lib/postgresql/data
+      - vi_nail_salon_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -22,21 +22,45 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      NODE_ENV: production
+      # Chưa tích hợp nhà cung cấp SMS/Zalo ZNS thật — mặc định backend sẽ từ chối khởi động ở
+      # production để tránh lộ mã OTP ra log. Chỉ đặt true cho môi trường demo/UAT nội bộ có
+      # kiểm soát truy cập log chặt chẽ; PHẢI thay bằng SmsProvider thật trước khi ra mắt thật.
+      ALLOW_CONSOLE_SMS_IN_PROD: ${ALLOW_CONSOLE_SMS_IN_PROD:-false}
       PORT: 3001
       TZ: Asia/Ho_Chi_Minh
     command: sh -c "npx prisma migrate deploy && npm run start:prod"
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   frontend:
     build:
       context: ../frontend
+      args:
+        NEXT_PUBLIC_API_URL: /api
     restart: unless-stopped
     environment:
       TZ: Asia/Ho_Chi_Minh
+      # Server-side rendering runs inside this container; "backend" resolves via Docker's
+      # internal DNS. The browser still uses the build-time NEXT_PUBLIC_API_URL (/api) above.
+      API_INTERNAL_URL: http://backend:3001/api
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   nginx:
     image: nginx:1.27-alpine
@@ -46,8 +70,10 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
 
 volumes:
-  webapp_nail_postgres_data:
+  vi_nail_salon_postgres_data:

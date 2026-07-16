@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:17-alpine
-    container_name: webapp-nail-postgres-dev
+    container_name: vi-nail-salon-postgres-dev
     restart: unless-stopped
     env_file:
       - ../.env
@@ -10,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - webapp_nail_postgres_data:/var/lib/postgresql/data
+      - vi_nail_salon_postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
@@ -21,11 +21,13 @@ services:
   backend:
     build:
       context: ../backend
-    container_name: webapp-nail-backend-dev
+    container_name: vi-nail-salon-backend-dev
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_SECRET: ${JWT_SECRET:-change-me}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      NODE_ENV: development
       PORT: 3001
       TZ: Asia/Ho_Chi_Minh
     command: sh -c "npx prisma migrate deploy && npm run start:prod"
@@ -34,18 +36,36 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   frontend:
     build:
       context: ../frontend
-    container_name: webapp-nail-frontend-dev
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001/api
+    container_name: vi-nail-salon-frontend-dev
     restart: unless-stopped
     environment:
       TZ: Asia/Ho_Chi_Minh
+      # Server-side rendering runs inside this container; "backend" resolves via Docker's
+      # internal DNS. The browser still uses the build-time NEXT_PUBLIC_API_URL above.
+      API_INTERNAL_URL: http://backend:3001/api
     ports:
       - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
 volumes:
-  webapp_nail_postgres_data:
+  vi_nail_salon_postgres_data:

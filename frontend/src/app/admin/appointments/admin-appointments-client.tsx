@@ -9,13 +9,17 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataTable, type DataTableColumn } from "@/components/ui/data-table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/providers/toast-provider";
-import { staffMembers } from "@/fixtures/staff";
+import { useApi } from "@/hooks/use-api";
+import { listAllAppointments, updateAppointmentStatus, assignStaff as assignStaffApi } from "@/services/appointment.service";
+import { listStaff } from "@/services/catalog.service";
+import { ApiError } from "@/lib/api-client";
 import {
   APPOINTMENT_STATUSES,
   appointmentStatusLabel,
@@ -24,9 +28,13 @@ import {
 } from "@/types/appointment";
 import { formatCurrencyVND, formatDateShortVN, formatTimeVN } from "@/utils/format";
 
-export function AdminAppointmentsClient({ initialAppointments }: { initialAppointments: Appointment[] }) {
+export function AdminAppointmentsClient() {
   const { showToast } = useToast();
-  const [appointments, setAppointments] = useState(initialAppointments);
+  const appointmentsState = useApi(listAllAppointments, []);
+  const staffState = useApi(listStaff, []);
+  const staffMembers = staffState.data ?? [];
+  const appointments = useMemo(() => appointmentsState.data ?? [], [appointmentsState.data]);
+
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [view, setView] = useState("list");
@@ -45,20 +53,32 @@ export function AdminAppointmentsClient({ initialAppointments }: { initialAppoin
     });
   }, [appointments, query, statusFilter]);
 
-  function updateStatus(id: string, status: AppointmentStatus, label: string) {
-    setAppointments((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? { ...a, status, timeline: [...a.timeline, { status, at: new Date().toISOString() }] }
-          : a,
-      ),
-    );
-    showToast({ variant: "success", title: label });
+  async function updateStatus(id: string, status: AppointmentStatus, label: string) {
+    try {
+      await updateAppointmentStatus(id, status);
+      showToast({ variant: "success", title: label });
+      appointmentsState.refetch();
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Không thể cập nhật trạng thái",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    }
   }
 
-  function assignStaff(id: string, staffId: string, staffName: string) {
-    setAppointments((prev) => prev.map((a) => (a.id === id ? { ...a, staffId, staffName } : a)));
-    showToast({ variant: "success", title: "Đã phân công nhân viên", description: staffName });
+  async function assignStaff(id: string, staffId: string, staffName: string) {
+    try {
+      await assignStaffApi(id, staffId);
+      showToast({ variant: "success", title: "Đã phân công nhân viên", description: staffName });
+      appointmentsState.refetch();
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Không thể phân công nhân viên",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    }
   }
 
   const columns: DataTableColumn<Appointment>[] = [
@@ -115,6 +135,19 @@ export function AdminAppointmentsClient({ initialAppointments }: { initialAppoin
       ),
     },
   ];
+
+  if (appointmentsState.isLoading || staffState.isLoading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (appointmentsState.error) {
+    return <p className="text-body-sm text-error">{appointmentsState.error}</p>;
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -210,6 +243,10 @@ function CalendarDayView({ appointments }: { appointments: Appointment[] }) {
   );
 }
 
+// LƯU Ý: Backend đã có endpoint POST /appointments/staff để tạo lịch hộ khách,
+// nhưng biểu mẫu này chưa thu thập dịch vụ/nhân viên/khung giờ nên vẫn giữ ở dạng
+// nháp minh họa (giới hạn đã biết) — cần bổ sung UI chọn dịch vụ và khung giờ để
+// gọi createStaffAppointment thật.
 function CreateAppointmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { showToast } = useToast();
   const [name, setName] = useState("");
@@ -225,12 +262,12 @@ function CreateAppointmentDialog({ open, onClose }: { open: boolean; onClose: ()
           <Input id="create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
         </Field>
         <p className="text-caption text-text-muted">
-          Chọn dịch vụ, nhân viên và khung giờ ở bước tiếp theo khi kết nối API đặt lịch thật.
+          Chọn dịch vụ, nhân viên và khung giờ ở bước tiếp theo khi bổ sung biểu mẫu đầy đủ.
         </p>
         <Button
           onClick={() => {
             onClose();
-            showToast({ variant: "success", title: "Đã tạo lịch hẹn nháp", description: `${name} · ${phone}` });
+            showToast({ variant: "info", title: "Biểu mẫu tạo lịch đầy đủ đang được hoàn thiện", description: `${name} · ${phone}` });
             setName("");
             setPhone("");
           }}

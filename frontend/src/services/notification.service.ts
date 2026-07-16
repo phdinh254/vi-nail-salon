@@ -1,9 +1,14 @@
-import { customerNotifications, staffNotifications } from "@/fixtures/notifications";
+import { apiRequest } from "@/lib/api-client";
+import type { NotificationItem } from "@/types/notification";
 
-export async function listCustomerNotifications() {
-  return customerNotifications;
+export async function listCustomerNotifications(): Promise<NotificationItem[]> {
+  return apiRequest<NotificationItem[]>("/notifications/me");
 }
 
-export async function listStaffNotifications() {
-  return staffNotifications;
+export async function listStaffNotifications(): Promise<NotificationItem[]> {
+  return apiRequest<NotificationItem[]>("/notifications/me");
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  await apiRequest(`/notifications/${id}/read`, { method: "PATCH" });
 }

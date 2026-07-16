@@ -9,6 +9,8 @@ dist/
 build/
 .next/
 coverage/
+test-results/
+playwright-report/
 
 *.tsbuildinfo
 next-env.d.ts

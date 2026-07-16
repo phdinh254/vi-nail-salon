@@ -7,12 +7,17 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PlaceholderImage } from "@/components/ui/placeholder-image";
 import { useToast } from "@/components/providers/toast-provider";
-import { NAIL_DESIGN_STYLES, nailDesignStyleLabel, nailDesignColorLabel, type NailDesign } from "@/types/nail-design";
+import { useApi } from "@/hooks/use-api";
+import { listNailDesigns } from "@/services/catalog.service";
+import { NAIL_DESIGN_STYLES, nailDesignStyleLabel, nailDesignColorLabel } from "@/types/nail-design";
 
-export function AdminNailDesignsClient({ initialDesigns }: { initialDesigns: NailDesign[] }) {
+export function AdminNailDesignsClient() {
   const { showToast } = useToast();
+  const designsState = useApi(listNailDesigns, []);
+  const initialDesigns = useMemo(() => designsState.data ?? [], [designsState.data]);
   const [query, setQuery] = useState("");
   const [style, setStyle] = useState("ALL");
 
@@ -25,6 +30,23 @@ export function AdminNailDesignsClient({ initialDesigns }: { initialDesigns: Nai
       }),
     [initialDesigns, query, style],
   );
+
+  if (designsState.isLoading) {
+    return (
+      <div className="flex flex-col gap-5">
+        <Skeleton className="h-10 w-full max-w-sm" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="aspect-square w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (designsState.error) {
+    return <p className="text-body-sm text-error">{designsState.error}</p>;
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -42,7 +64,7 @@ export function AdminNailDesignsClient({ initialDesigns }: { initialDesigns: Nai
         </div>
         <Button
           onClick={() =>
-            showToast({ variant: "info", title: "Thêm mẫu nail", description: "Chức năng tải ảnh sẽ khả dụng khi kết nối API thật." })
+            showToast({ variant: "info", title: "Thêm mẫu nail", description: "Chức năng tải ảnh sẽ khả dụng khi bổ sung biểu mẫu tải lên đầy đủ." })
           }
         >
           <Plus className="size-4" aria-hidden="true" />

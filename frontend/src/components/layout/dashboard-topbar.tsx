@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Menu, Bell, LogOut } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { IconButton } from "@/components/ui/icon-button";
@@ -11,6 +11,7 @@ import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/layout/logo";
 import type { NavItem } from "@/components/layout/dashboard-nav-config";
 import type { DemoSession } from "@/fixtures/session";
+import { useAuth } from "@/stores/auth-store";
 import { cn } from "@/utils/cn";
 
 export function DashboardTopbar({
@@ -26,6 +27,13 @@ export function DashboardTopbar({
 }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { clearSession } = useAuth();
+
+  function handleLogout() {
+    clearSession();
+    router.push("/login");
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border bg-surface/95 px-4 backdrop-blur sm:px-6">
@@ -62,7 +70,7 @@ export function DashboardTopbar({
           }
           items={[
             { label: "Hồ sơ của tôi", onSelect: () => {}, icon: <Avatar initials={session.initials} size="sm" /> },
-            { label: "Đăng xuất", onSelect: () => {}, icon: <LogOut />, destructive: true },
+            { label: "Đăng xuất", onSelect: handleLogout, icon: <LogOut />, destructive: true },
           ]}
         />
       </div>
@@ -96,13 +104,14 @@ export function DashboardTopbar({
             </ul>
           </nav>
           <div className="border-t border-border p-3">
-            <Link
-              href="/login"
-              className="flex items-center gap-3 rounded-md px-3 py-3 text-body-sm font-medium text-text-muted hover:bg-bg-subtle hover:text-error"
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-body-sm font-medium text-text-muted hover:bg-bg-subtle hover:text-error"
             >
               <LogOut className="size-4.5" aria-hidden="true" />
               Đăng xuất
-            </Link>
+            </button>
           </div>
         </div>
       </Drawer>

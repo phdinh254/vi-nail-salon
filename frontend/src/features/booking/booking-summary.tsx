@@ -3,14 +3,20 @@
 import { Clock, Wallet } from "lucide-react";
 import { useBooking } from "@/features/booking/booking-context";
 import { formatCurrencyVND, formatDurationMinutes, formatDateVN } from "@/utils/format";
-import { getStaffById } from "@/fixtures/staff";
+import { useApi } from "@/hooks/use-api";
+import { getStaffMember } from "@/services/catalog.service";
 
 export function BookingSummary() {
   const { state, selectedServices, totalPrice, totalDurationMinutes } = useBooking();
 
-  if (selectedServices.length === 0) return null;
+  const hasStaffId = Boolean(state.staffId && state.staffId !== "ANY");
+  const { data: staff } = useApi(
+    () => getStaffMember(state.staffId as string),
+    [state.staffId],
+    { enabled: hasStaffId },
+  );
 
-  const staff = state.staffId && state.staffId !== "ANY" ? getStaffById(state.staffId) : null;
+  if (selectedServices.length === 0) return null;
 
   return (
     <aside className="rounded-lg border border-border bg-bg-subtle p-5">
@@ -26,7 +32,7 @@ export function BookingSummary() {
 
       {state.staffId ? (
         <p className="mt-3 text-body-sm text-text-muted">
-          Nhân viên: <span className="text-text">{staff ? staff.name : "Bất kỳ nhân viên nào"}</span>
+          Nhân viên: <span className="text-text">{hasStaffId ? (staff ? staff.name : "...") : "Bất kỳ nhân viên nào"}</span>
         </p>
       ) : null}
       {state.date && state.time ? (

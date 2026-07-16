@@ -9,10 +9,18 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useToast } from "@/components/providers/toast-provider";
 import { canModifyStatuses } from "@/features/guest-booking/lookup";
+import { guestCancel } from "@/services/appointment.service";
+import { ApiError } from "@/lib/api-client";
 import type { Appointment } from "@/types/appointment";
 import { formatCurrencyVND, formatDateVN, formatDurationMinutes, formatTimeVN } from "@/utils/format";
 
-export function AppointmentDetailClient({ appointment }: { appointment: Appointment }) {
+export function AppointmentDetailClient({
+  appointment,
+  onCancelled,
+}: {
+  appointment: Appointment;
+  onCancelled?: () => void;
+}) {
   const { showToast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -110,13 +118,26 @@ export function AppointmentDetailClient({ appointment }: { appointment: Appointm
       <ConfirmDialog
         open={dialogOpen}
         onClose={() => setDialogOpen(false)}
-        onConfirm={() => {
+        onConfirm={async () => {
           setIsSubmitting(true);
-          setTimeout(() => {
+          try {
+            await guestCancel(appointment.code, appointment.customerPhone);
+            showToast({
+              variant: "success",
+              title: "Đã hủy lịch hẹn",
+              description: `Lịch hẹn ${appointment.code} đã được hủy.`,
+            });
+            onCancelled?.();
+          } catch (err) {
+            showToast({
+              variant: "error",
+              title: "Không thể hủy lịch hẹn",
+              description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+            });
+          } finally {
             setIsSubmitting(false);
             setDialogOpen(false);
-            showToast({ variant: "success", title: "Đã hủy lịch hẹn", description: `Lịch hẹn ${appointment.code} đã được hủy.` });
-          }, 700);
+          }
         }}
         title="Xác nhận hủy lịch hẹn"
         description="Bạn sẽ không thể hoàn tác thao tác này."

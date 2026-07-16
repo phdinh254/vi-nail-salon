@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Field, fieldDescribedBy } from "@/components/ui/field";
 import { PhoneInput } from "@/components/ui/phone-input";
@@ -9,10 +10,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/providers/toast-provider";
 import { login } from "@/services/auth.service";
+import { useAuth } from "@/stores/auth-store";
+import { ApiError } from "@/lib/api-client";
 import { isValidVietnamesePhone } from "@/utils/format";
+
+const ROLE_HOME: Record<string, string> = {
+  ADMIN: "/admin/dashboard",
+  STAFF: "/staff/dashboard",
+  CUSTOMER: "/customer/dashboard",
+};
 
 export default function LoginPage() {
   const { showToast } = useToast();
+  const { setSession } = useAuth();
+  const router = useRouter();
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ phone?: string; password?: string }>({});
@@ -27,14 +38,18 @@ export default function LoginPage() {
     if (Object.keys(nextErrors).length > 0) return;
 
     setIsSubmitting(true);
-    const result = await login({ phone, password });
-    setIsSubmitting(false);
-    if (!result.ok) {
+    try {
+      const result = await login({ phone, password });
+      setSession(result.accessToken, result.user);
+      router.push(ROLE_HOME[result.user.role] ?? "/");
+    } catch (err) {
       showToast({
-        variant: "info",
-        title: "Giao diện xem trước",
-        description: "Đăng nhập sẽ hoạt động khi kết nối hệ thống xác thực thật.",
+        variant: "error",
+        title: "Đăng nhập thất bại",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 

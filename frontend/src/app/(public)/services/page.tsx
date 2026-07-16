@@ -7,6 +7,7 @@ import { listServices } from "@/services/catalog.service";
 import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = { title: "Dịch vụ" };
+export const dynamic = "force-dynamic";
 
 export default async function ServicesPage() {
   const services = await listServices();

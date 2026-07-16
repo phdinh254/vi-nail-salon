@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
@@ -15,10 +16,12 @@ import { PaymentsModule } from './payments/payments.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
 import { TimeOffModule } from './time-off/time-off.module';
+import { HealthModule } from './health/health.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 60 }]),
     PrismaModule,
     AuthModule,
     ServicesModule,
@@ -31,9 +34,11 @@ import { TimeOffModule } from './time-off/time-off.module';
     NotificationsModule,
     AuditLogModule,
     TimeOffModule,
+    HealthModule,
   ],
   controllers: [],
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

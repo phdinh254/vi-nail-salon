@@ -9,12 +9,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { BookingStepLayout } from "@/features/booking/booking-step-layout";
 import { useBooking } from "@/features/booking/booking-context";
 import { isValidVietnamesePhone } from "@/utils/format";
-import { getNailDesignById } from "@/fixtures/nail-designs";
+import { useApi } from "@/hooks/use-api";
+import { getNailDesign } from "@/services/catalog.service";
 
 export default function CustomerInfoStepPage() {
   const router = useRouter();
   const { state, update, selectedServices } = useBooking();
   const [errors, setErrors] = useState<{ name?: string; phone?: string }>({});
+  const hasNailDesign = Boolean(state.nailDesignId);
+  const { data: nailDesign } = useApi(
+    () => getNailDesign(state.nailDesignId as string),
+    [state.nailDesignId],
+    { enabled: hasNailDesign },
+  );
 
   useEffect(() => {
     if (selectedServices.length === 0) router.replace("/booking/services");
@@ -23,8 +30,6 @@ export default function CustomerInfoStepPage() {
   }, []);
 
   if (selectedServices.length === 0 || !state.date || !state.time) return null;
-
-  const nailDesign = state.nailDesignId ? getNailDesignById(state.nailDesignId) : null;
 
   function handleContinue() {
     const nextErrors: { name?: string; phone?: string } = {};

@@ -12,6 +12,15 @@ import type { SmsProvider } from './sms-provider.interface';
 export class ConsoleSmsProvider implements SmsProvider {
   private readonly logger = new Logger(ConsoleSmsProvider.name);
 
+  constructor() {
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_CONSOLE_SMS_IN_PROD !== 'true') {
+      throw new Error(
+        'ConsoleSmsProvider in chọn mã OTP ra log — không được dùng ở production. ' +
+          'Cấu hình một SmsProvider gửi SMS/Zalo ZNS thật, hoặc đặt ALLOW_CONSOLE_SMS_IN_PROD=true nếu đây thực sự là môi trường demo/UAT nội bộ, có kiểm soát truy cập log chặt chẽ.',
+      );
+    }
+  }
+
   async sendOtp(phone: string, code: string): Promise<void> {
     this.logger.warn(`[DEV ONLY] Mã OTP cho ${phone}: ${code} (chưa gửi SMS thật)`);
   }

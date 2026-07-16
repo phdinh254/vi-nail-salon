@@ -1,88 +1,79 @@
 /**
- * Lớp data-access cho xác thực (OTP, magic-link, đăng nhập/đăng ký).
- *
- * Toàn bộ hàm ở đây hiện chỉ mô phỏng độ trễ mạng và trả về kết quả có kiểu rõ
- * ràng — KHÔNG có xác thực thật, không gọi SMS/Zalo thật, không tạo phiên đăng
- * nhập. Khi nối backend, chỉ cần thay phần thân từng hàm bằng lời gọi Route
- * Handler/API thật; chữ ký hàm (tham số + Promise<kết quả>) đã đúng hình dạng
- * cần thiết nên không phải sửa lại UI đang gọi các hàm này.
+ * Lớp data-access cho xác thực (OTP, đăng nhập/đăng ký), gọi thẳng API NestJS
+ * thật. Không còn mô phỏng — mọi lỗi từ backend (sai OTP, sai mật khẩu, số
+ * điện thoại đã tồn tại...) được ném ra dưới dạng `ApiError` để trang gọi bắt
+ * và hiển thị.
  */
+import { apiRequest, ApiError } from "@/lib/api-client";
+import type { AuthUser } from "@/stores/auth-store";
 
-function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export type LoginResponse = { accessToken: string; user: AuthUser };
 
-export type SendOtpResult = { ok: true };
-
-export async function sendOtp(phone: string): Promise<SendOtpResult> {
-  void phone;
-  await delay(700);
-  return { ok: true };
-}
-
-export async function resendOtp(phone: string): Promise<SendOtpResult> {
-  return sendOtp(phone);
-}
-
-export type VerifyOtpResult = { ok: true } | { ok: false; reason: "invalid" | "incomplete" };
-
-/**
- * Chưa có backend để đối chiếu mã thật. Bất kỳ mã đủ 6 chữ số nào cũng được
- * coi là hợp lệ để có thể trình diễn trọn luồng giao diện — đây là giới hạn
- * đã biết của bản thiết kế UI-only, không phải cơ chế bảo mật.
- */
-export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
-  void phone;
-  await delay(900);
-  if (code.length < 6) return { ok: false, reason: "incomplete" };
-  return { ok: true };
-}
-
-export type ExchangeMagicLinkResult =
-  | { ok: true }
-  | { ok: false; reason: "invalid" | "expired" | "used" };
-
-/**
- * `hasFragmentToken` phải được đọc bởi trang gọi hàm này (chỉ trang mới nên
- * đọc `window.location.hash`), hàm này chỉ xử lý phần "trao đổi token".
- */
-export async function exchangeMagicLinkToken(hasFragmentToken: boolean): Promise<ExchangeMagicLinkResult> {
-  if (!hasFragmentToken) return { ok: false, reason: "invalid" };
-  await delay(1000);
-  return { ok: true };
-}
-
-export type AuthActionResult = { ok: true } | { ok: false; reason: "not_connected" };
-
-/**
- * Luôn trả về "not_connected" một cách tường minh — tuyệt đối không tạo
- * phiên đăng nhập giả bằng localStorage hay bất kỳ cơ chế nào khác.
- */
-export async function login(input: { phone: string; password: string }): Promise<AuthActionResult> {
-  void input;
-  await delay(800);
-  return { ok: false, reason: "not_connected" };
+export async function login(input: { phone: string; password: string }): Promise<LoginResponse> {
+  return apiRequest<LoginResponse>("/auth/login", { method: "POST", body: input, token: null });
 }
 
 export async function register(input: {
   name: string;
   phone: string;
   password: string;
-}): Promise<AuthActionResult> {
-  void input;
-  await delay(800);
-  return { ok: false, reason: "not_connected" };
+}): Promise<LoginResponse> {
+  return apiRequest<LoginResponse>("/auth/register", { method: "POST", body: input, token: null });
+}
+
+export type SendOtpResult = { sent: true; expiresInSeconds: number };
+
+export async function sendOtp(phone: string): Promise<SendOtpResult> {
+  return apiRequest<SendOtpResult>("/auth/otp/request", { method: "POST", body: { phone }, token: null });
+}
+
+export async function resendOtp(phone: string): Promise<SendOtpResult> {
+  return sendOtp(phone);
+}
+
+export type VerifyOtpResult =
+  | { ok: true; bookingSessionToken: string }
+  | { ok: false; reason: "invalid" | "incomplete" };
+
+export async function verifyOtp(phone: string, code: string): Promise<VerifyOtpResult> {
+  if (code.length < 6) return { ok: false, reason: "incomplete" };
+  try {
+    const result = await apiRequest<{ bookingSessionToken: string }>("/auth/otp/verify", {
+      method: "POST",
+      body: { phone, code },
+      token: null,
+    });
+    return { ok: true, bookingSessionToken: result.bookingSessionToken };
+  } catch (err) {
+    if (err instanceof ApiError) return { ok: false, reason: "invalid" };
+    throw err;
+  }
+}
+
+export type ExchangeGuestTokenResult =
+  | { ok: true; code: string; phone: string }
+  | { ok: false; reason: "invalid" | "expired" | "used" };
+
+export async function exchangeGuestAccessToken(token: string): Promise<ExchangeGuestTokenResult> {
+  return apiRequest<ExchangeGuestTokenResult>("/auth/guest-access/exchange", {
+    method: "POST",
+    body: { token },
+    token: null,
+  });
+}
+
+export async function getCurrentUser(token: string): Promise<AuthUser> {
+  return apiRequest<AuthUser>("/auth/me", { token });
 }
 
 export type RequestPasswordResetResult = { ok: true };
 
 /**
- * Luôn trả về thành công bất kể số điện thoại có tồn tại hay không — đây là
- * hành vi bảo mật đúng đắn (tránh lộ thông tin tài khoản nào tồn tại), không
- * phải hạn chế của bản mô phỏng.
+ * Backend chưa có luồng đặt lại mật khẩu (chưa có endpoint tương ứng) — đây
+ * là giới hạn đã biết, ghi nhận trong báo cáo QA. Luôn trả về thành công để
+ * không lộ số điện thoại nào tồn tại trong hệ thống.
  */
 export async function requestPasswordReset(phone: string): Promise<RequestPasswordResetResult> {
   void phone;
-  await delay(800);
   return { ok: true };
 }

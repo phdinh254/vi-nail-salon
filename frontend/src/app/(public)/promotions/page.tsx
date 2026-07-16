@@ -11,6 +11,7 @@ import { listPromotions } from "@/services/catalog.service";
 import { formatDateShortVN } from "@/utils/format";
 
 export const metadata: Metadata = { title: "Ưu đãi" };
+export const dynamic = "force-dynamic";
 
 export default async function PromotionsPage() {
   const promotions = await listPromotions();

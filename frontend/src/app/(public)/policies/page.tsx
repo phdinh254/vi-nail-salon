@@ -31,6 +31,8 @@ const policySections = [
   },
 ];
 
+export const dynamic = "force-dynamic";
+
 export default async function PoliciesPage() {
   const faqItems = await listFaq();
 

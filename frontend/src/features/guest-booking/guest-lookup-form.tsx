@@ -15,16 +15,20 @@ export function GuestLookupForm() {
   const [code, setCode] = useState("");
   const [phone, setPhone] = useState("");
   const [notFound, setNotFound] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const appointment = lookupGuestAppointment(code, phone);
-    if (!appointment) {
+    setIsSubmitting(true);
+    try {
+      const appointment = await lookupGuestAppointment(code, phone);
+      setNotFound(false);
+      router.push(`/guest-booking?code=${encodeURIComponent(appointment.code)}&phone=${encodeURIComponent(phone.trim())}`);
+    } catch {
       setNotFound(true);
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-    setNotFound(false);
-    router.push(`/guest-booking?code=${encodeURIComponent(appointment.code)}&phone=${encodeURIComponent(phone.trim())}`);
   }
 
   return (
@@ -35,14 +39,10 @@ export function GuestLookupForm() {
       <Field id="lookup-phone" label="Số điện thoại đã đặt lịch" required>
         <PhoneInput id="lookup-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
       </Field>
-      <Button type="submit">
+      <Button type="submit" isLoading={isSubmitting}>
         <Search className="size-4" aria-hidden="true" />
         Tra cứu lịch hẹn
       </Button>
-      <p className="text-caption text-text-muted">
-        Dữ liệu minh họa để xem trước giao diện: mã <strong>VN-1002</strong>, số điện thoại{" "}
-        <strong>0977445566</strong>.
-      </p>
       {notFound ? (
         <ErrorState
           title="Không tìm thấy lịch hẹn"

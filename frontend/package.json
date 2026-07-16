@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "vi-nail-salon-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -12,12 +12,7 @@
     "format:check": "prettier . --check",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "playwright test",
-    "db:generate": "prisma generate",
-    "db:validate": "prisma validate",
-    "db:format": "prisma format",
-    "db:migrate": "prisma migrate dev",
-    "db:seed": "prisma db seed"
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
@@ -52,7 +47,6 @@
     "jsdom": "^29.1.1",
     "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.1",
     "typescript": "^5",

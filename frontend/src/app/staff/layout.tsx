@@ -2,14 +2,21 @@
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { staffNavItems, staffMobileNavItems } from "@/components/layout/dashboard-nav-config";
-import { demoStaffSession } from "@/fixtures/session";
-import { staffNotifications } from "@/fixtures/notifications";
+import { useRequireRole } from "@/stores/auth-store";
+import { toDemoSession } from "@/utils/session";
+import { useApi } from "@/hooks/use-api";
+import { listStaffNotifications } from "@/services/notification.service";
 
 export default function StaffLayout({ children }: { children: React.ReactNode }) {
-  const unread = staffNotifications.filter((n) => !n.isRead).length;
+  const { user, isReady } = useRequireRole("STAFF");
+  const { data: notifications } = useApi(listStaffNotifications, [], { enabled: isReady });
+  const unread = notifications?.filter((n) => !n.isRead).length ?? 0;
+
+  if (!isReady || !user) return null;
+
   return (
     <DashboardShell
-      session={demoStaffSession}
+      session={toDemoSession(user, "Nhân viên")}
       roleLabel="Nhân viên"
       sidebarItems={staffNavItems}
       mobileNavItems={staffMobileNavItems}

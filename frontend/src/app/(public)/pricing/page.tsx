@@ -8,6 +8,7 @@ import { SERVICE_CATEGORIES, serviceCategoryLabel } from "@/types/service";
 import { formatDurationMinutes, formatPriceRange } from "@/utils/format";
 
 export const metadata: Metadata = { title: "Bảng giá" };
+export const dynamic = "force-dynamic";
 
 export default async function PricingPage() {
   const services = await listServices();

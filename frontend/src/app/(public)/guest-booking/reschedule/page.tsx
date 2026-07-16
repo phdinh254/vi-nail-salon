@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { PageHeader } from "@/components/ui/page-header";
@@ -10,16 +10,25 @@ import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeSlotPicker, type TimeSlot } from "@/components/ui/time-slot-picker";
 import { ErrorState } from "@/components/ui/error-state";
-import { lookupGuestAppointment, canModifyStatuses } from "@/features/guest-booking/lookup";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useToast } from "@/components/providers/toast-provider";
+import { lookupGuestAppointment, rescheduleGuestAppointment, canModifyStatuses } from "@/features/guest-booking/lookup";
+import { useApi } from "@/hooks/use-api";
 import { generateTimeSlots } from "@/fixtures/time-slots";
 import { formatDateVN } from "@/utils/format";
+import { ApiError } from "@/lib/api-client";
 
 function RescheduleContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const code = searchParams.get("code") ?? "";
   const phone = searchParams.get("phone") ?? "";
-  const appointment = lookupGuestAppointment(code, phone);
+  const { showToast } = useToast();
+
+  const {
+    data: appointment,
+    isLoading: isLoadingAppointment,
+    error: appointmentError,
+  } = useApi(() => lookupGuestAppointment(code, phone), [code, phone], { enabled: Boolean(code && phone) });
 
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState<string | null>(null);
@@ -41,7 +50,16 @@ function RescheduleContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
-  if (!appointment || !canModifyStatuses.includes(appointment.status)) {
+  if (isLoadingAppointment) {
+    return (
+      <Container className="max-w-2xl py-10 sm:py-14">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="mt-4 h-64 w-full rounded-lg" />
+      </Container>
+    );
+  }
+
+  if (!appointment || appointmentError || !canModifyStatuses.includes(appointment.status)) {
     return (
       <Container className="max-w-lg py-14">
         <ErrorState title="Không thể đổi lịch" description="Lịch hẹn không tồn tại hoặc không còn ở trạng thái cho phép đổi lịch." />
@@ -70,6 +88,27 @@ function RescheduleContent() {
     );
   }
 
+  async function handleConfirm() {
+    if (!date || !time) return;
+    const [hours, minutes] = time.split(":").map(Number);
+    const startAt = new Date(date);
+    startAt.setHours(hours, minutes, 0, 0);
+
+    setIsSubmitting(true);
+    try {
+      await rescheduleGuestAppointment(code, phone, startAt.toISOString());
+      setDone(true);
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: "Đổi lịch thất bại",
+        description: err instanceof ApiError ? err.message : "Đã có lỗi xảy ra. Vui lòng thử lại.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <Container className="max-w-2xl py-10 sm:py-14">
       <PageHeader title="Đổi lịch hẹn" description={`Chọn ngày giờ mới cho lịch hẹn ${appointment.code}.`} />
@@ -92,17 +131,7 @@ function RescheduleContent() {
         <Button variant="secondary" asChild>
           <Link href={`/guest-booking?code=${encodeURIComponent(code)}&phone=${encodeURIComponent(phone)}`}>Hủy thao tác</Link>
         </Button>
-        <Button
-          disabled={!date || !time}
-          isLoading={isSubmitting}
-          onClick={() => {
-            setIsSubmitting(true);
-            setTimeout(() => {
-              setIsSubmitting(false);
-              setDone(true);
-            }, 800);
-          }}
-        >
+        <Button disabled={!date || !time} isLoading={isSubmitting} onClick={handleConfirm}>
           Xác nhận đổi lịch
         </Button>
       </div>

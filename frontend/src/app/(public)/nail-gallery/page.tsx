@@ -6,6 +6,9 @@ import { NailGalleryExplorer } from "@/features/gallery/nail-gallery-explorer";
 import { listNailDesigns } from "@/services/catalog.service";
 
 export const metadata: Metadata = { title: "Bộ sưu tập mẫu nail" };
+// Dữ liệu backend thay đổi thường xuyên và không có lúc build (Docker build
+// không có backend sống) — luôn render động ở mỗi request thay vì prerender tĩnh.
+export const dynamic = "force-dynamic";
 
 export default async function NailGalleryPage() {
   const designs = await listNailDesigns();
