@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DatePicker } from "@/components/ui/date-picker";
 import { TimeSlotPicker, type TimeSlot } from "@/components/ui/time-slot-picker";
+import { ErrorState } from "@/components/ui/error-state";
 import { BookingStepLayout } from "@/features/booking/booking-step-layout";
 import { useBooking } from "@/features/booking/booking-context";
-import { generateTimeSlots } from "@/fixtures/time-slots";
+import { useAvailability } from "@/hooks/use-availability";
+import { formatTimeVN } from "@/utils/format";
 
 export default function ScheduleStepPage() {
   const router = useRouter();
   const { state, update, selectedServices } = useBooking();
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (selectedServices.length === 0) router.replace("/booking/services");
@@ -20,25 +20,31 @@ export default function ScheduleStepPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const { slots: availabilitySlots, isLoading, error } = useAvailability({
+    date: state.date,
+    serviceIds: state.serviceIds,
+    staffId: state.staffId,
+  });
+
+  // Reset the picked time whenever the underlying availability changes (new date, staff, or
+  // service selection) — never let a stale selection from a previous fetch slip through to
+  // submit.
   useEffect(() => {
-    if (!state.date) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- bật skeleton ngay khi ngày thay đổi, trước khi giả lập gọi API
-    setIsLoading(true);
     update("time", null);
-    const timer = setTimeout(() => {
-      setSlots(generateTimeSlots(state.date as Date, state.staffId === "ANY" ? null : state.staffId));
-      setIsLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.date, state.staffId]);
+  }, [state.date, state.staffId, state.serviceIds.join(",")]);
+
+  const slots: TimeSlot[] = availabilitySlots.map((s) => ({
+    time: formatTimeVN(new Date(s.startAt)),
+    available: true,
+  }));
 
   if (selectedServices.length === 0 || !state.staffId) return null;
 
   return (
     <BookingStepLayout
       title="Chọn ngày và giờ"
-      description="Khung giờ hiển thị theo thời gian thực tại tiệm."
+      description="Khung giờ hiển thị theo lịch trống thực tế của tiệm."
       onBack={() => router.push("/booking/staff")}
       onContinue={() => router.push("/booking/customer-info")}
       continueDisabled={!state.date || !state.time}
@@ -48,15 +54,17 @@ export default function ScheduleStepPage() {
         <div>
           <p className="text-label text-text">Khung giờ trống</p>
           <div className="mt-3">
-            {state.date ? (
+            {!state.date ? (
+              <p className="text-body-sm text-text-muted">Vui lòng chọn ngày để xem khung giờ trống.</p>
+            ) : error ? (
+              <ErrorState description={error} />
+            ) : (
               <TimeSlotPicker
                 slots={slots}
                 value={state.time}
                 onChange={(time) => update("time", time)}
                 isLoading={isLoading}
               />
-            ) : (
-              <p className="text-body-sm text-text-muted">Vui lòng chọn ngày để xem khung giờ trống.</p>
             )}
           </div>
         </div>

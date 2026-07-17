@@ -7,10 +7,12 @@
 import { apiRequest, ApiError } from "@/lib/api-client";
 import type { AuthUser } from "@/stores/auth-store";
 
-export type LoginResponse = { accessToken: string; user: AuthUser };
+// The backend sets the session (httpOnly cookie) as a side effect of this call — the
+// response body only carries the profile the UI needs to render, never the token itself.
+export type LoginResponse = { user: AuthUser };
 
 export async function login(input: { phone: string; password: string }): Promise<LoginResponse> {
-  return apiRequest<LoginResponse>("/auth/login", { method: "POST", body: input, token: null });
+  return apiRequest<LoginResponse>("/auth/login", { method: "POST", body: input });
 }
 
 export async function register(input: {
@@ -18,7 +20,7 @@ export async function register(input: {
   phone: string;
   password: string;
 }): Promise<LoginResponse> {
-  return apiRequest<LoginResponse>("/auth/register", { method: "POST", body: input, token: null });
+  return apiRequest<LoginResponse>("/auth/register", { method: "POST", body: input });
 }
 
 export type SendOtpResult = { sent: true; expiresInSeconds: number };
@@ -62,8 +64,8 @@ export async function exchangeGuestAccessToken(token: string): Promise<ExchangeG
   });
 }
 
-export async function getCurrentUser(token: string): Promise<AuthUser> {
-  return apiRequest<AuthUser>("/auth/me", { token });
+export async function getCurrentUser(): Promise<AuthUser> {
+  return apiRequest<AuthUser>("/auth/me");
 }
 
 export type RequestPasswordResetResult = { ok: true };

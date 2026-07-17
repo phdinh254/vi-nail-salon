@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   UnauthorizedException,
@@ -9,22 +10,30 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import * as argon2 from 'argon2';
-import { createHash, randomBytes, randomInt } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  ACCESS_TOKEN_TTL_MINUTES,
   BOOKING_SESSION_TTL_MINUTES,
   GUEST_ACCESS_TOKEN_TTL_MINUTES,
   OTP_LENGTH,
   OTP_MAX_ATTEMPTS,
   OTP_RESEND_COOLDOWN_SECONDS,
   OTP_TTL_MINUTES,
+  REFRESH_TOKEN_TTL_DAYS,
 } from '../common/constants';
 import { SMS_PROVIDER, type SmsProvider } from './sms/sms-provider.interface';
+import { normalizeVietnamesePhone } from '../common/utils/phone';
+import { hashToken } from '../common/utils/crypto';
 import type { BookingSessionPayload, GuestAppointmentPayload, JwtPayload } from './jwt.types';
 
-function hashToken(raw: string): string {
-  return createHash('sha256').update(raw).digest('hex');
-}
+export type TokenPair = {
+  accessToken: string;
+  accessTokenExpiresAt: Date;
+  refreshToken: string;
+  refreshTokenExpiresAt: Date;
+  csrfToken: string;
+};
 
 @Injectable()
 export class AuthService {
@@ -37,22 +46,71 @@ export class AuthService {
 
   private signAccessToken(user: { id: string; phone: string; name: string; role: UserRole }) {
     const payload: JwtPayload = { sub: user.id, phone: user.phone, name: user.name, role: user.role };
-    return this.jwt.sign(payload, { expiresIn: '7d' });
+    return this.jwt.sign(payload, { expiresIn: `${ACCESS_TOKEN_TTL_MINUTES}m` });
   }
 
-  async login(phone: string, password: string) {
+  /** Issues a fresh access+refresh+CSRF token triple and persists the refresh token's hash. */
+  private async issueTokenPair(
+    user: { id: string; phone: string; name: string; role: UserRole },
+    replacesTokenId?: string,
+  ): Promise<TokenPair> {
+    const accessToken = this.signAccessToken(user);
+    const accessTokenExpiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MINUTES * 60 * 1000);
+
+    const rawRefreshToken = randomBytes(32).toString('base64url');
+    const refreshTokenExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+    const created = await this.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(rawRefreshToken),
+        expiresAt: refreshTokenExpiresAt,
+      },
+    });
+
+    if (replacesTokenId) {
+      await this.prisma.refreshToken.update({
+        where: { id: replacesTokenId },
+        data: { replacedByTokenId: created.id },
+      });
+    }
+
+    return {
+      accessToken,
+      accessTokenExpiresAt,
+      refreshToken: rawRefreshToken,
+      refreshTokenExpiresAt,
+      csrfToken: randomBytes(24).toString('base64url'),
+    };
+  }
+
+  private async assertActiveUser(userId: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Tài khoản không còn tồn tại.');
+    if (!user.isActive) throw new ForbiddenException('Tài khoản đã bị khóa.');
+    return user;
+  }
+
+  async login(phoneInput: string, password: string): Promise<{ user: JwtPayload } & TokenPair> {
+    const phone = normalizeVietnamesePhone(phoneInput);
     const user = await this.prisma.user.findUnique({ where: { phone } });
     if (!user) throw new UnauthorizedException('Số điện thoại hoặc mật khẩu không đúng.');
     const valid = await argon2.verify(user.passwordHash, password);
     if (!valid) throw new UnauthorizedException('Số điện thoại hoặc mật khẩu không đúng.');
+    if (!user.isActive) throw new ForbiddenException('Tài khoản đã bị khóa.');
 
+    const tokens = await this.issueTokenPair(user);
     return {
-      accessToken: this.signAccessToken(user),
-      user: { id: user.id, name: user.name, phone: user.phone, role: user.role },
+      user: { sub: user.id, name: user.name, phone: user.phone, role: user.role },
+      ...tokens,
     };
   }
 
-  async registerCustomer(name: string, phone: string, password: string) {
+  async registerCustomer(
+    name: string,
+    phoneInput: string,
+    password: string,
+  ): Promise<{ user: JwtPayload } & TokenPair> {
+    const phone = normalizeVietnamesePhone(phoneInput);
     const existing = await this.prisma.user.findUnique({ where: { phone } });
     if (existing) throw new ConflictException('Số điện thoại đã được đăng ký.');
 
@@ -61,13 +119,60 @@ export class AuthService {
       data: { name, phone, passwordHash, role: UserRole.CUSTOMER },
     });
 
+    const tokens = await this.issueTokenPair(user);
     return {
-      accessToken: this.signAccessToken(user),
-      user: { id: user.id, name: user.name, phone: user.phone, role: user.role },
+      user: { sub: user.id, name: user.name, phone: user.phone, role: user.role },
+      ...tokens,
     };
   }
 
-  async requestOtp(phone: string) {
+  /**
+   * Rotates the refresh token. If a token that was already revoked (i.e. already used once
+   * for rotation, or explicitly revoked by logout) is presented again, that's a reuse
+   * signal — the credential was likely stolen — so every refresh token for that user is
+   * revoked immediately, forcing a fresh login everywhere.
+   */
+  async refresh(rawRefreshToken: string): Promise<{ user: JwtPayload } & TokenPair> {
+    const tokenHash = hashToken(rawRefreshToken);
+    const record = await this.prisma.refreshToken.findUnique({ where: { tokenHash } });
+    if (!record) throw new UnauthorizedException('Phiên đăng nhập không hợp lệ.');
+
+    if (record.revokedAt) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: record.userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      throw new UnauthorizedException('Phiên đăng nhập đã bị thu hồi, vui lòng đăng nhập lại.');
+    }
+    if (record.expiresAt < new Date()) {
+      throw new UnauthorizedException('Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại.');
+    }
+
+    const user = await this.assertActiveUser(record.userId);
+
+    await this.prisma.refreshToken.update({
+      where: { id: record.id },
+      data: { revokedAt: new Date() },
+    });
+
+    const tokens = await this.issueTokenPair(user, record.id);
+    return {
+      user: { sub: user.id, name: user.name, phone: user.phone, role: user.role },
+      ...tokens,
+    };
+  }
+
+  async logout(rawRefreshToken: string | undefined): Promise<void> {
+    if (!rawRefreshToken) return;
+    const tokenHash = hashToken(rawRefreshToken);
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
+  async requestOtp(phoneInput: string) {
+    const phone = normalizeVietnamesePhone(phoneInput);
     const cooldownStart = new Date(Date.now() - OTP_RESEND_COOLDOWN_SECONDS * 1000);
     const recent = await this.prisma.otpChallenge.findFirst({
       where: { phone, purpose: 'BOOKING_VERIFY', createdAt: { gt: cooldownStart } },
@@ -92,7 +197,8 @@ export class AuthService {
     return { sent: true, expiresInSeconds: OTP_TTL_MINUTES * 60 };
   }
 
-  async verifyOtp(phone: string, code: string) {
+  async verifyOtp(phoneInput: string, code: string) {
+    const phone = normalizeVietnamesePhone(phoneInput);
     const challenge = await this.prisma.otpChallenge.findFirst({
       where: { phone, purpose: 'BOOKING_VERIFY', consumedAt: null },
       orderBy: { createdAt: 'desc' },

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
@@ -14,8 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/providers/toast-provider";
 import { lookupGuestAppointment, rescheduleGuestAppointment, canModifyStatuses } from "@/features/guest-booking/lookup";
 import { useApi } from "@/hooks/use-api";
-import { generateTimeSlots } from "@/fixtures/time-slots";
-import { formatDateVN } from "@/utils/format";
+import { useAvailability } from "@/hooks/use-availability";
+import { formatDateVN, formatTimeVN } from "@/utils/format";
 import { ApiError } from "@/lib/api-client";
 
 function RescheduleContent() {
@@ -32,23 +32,24 @@ function RescheduleContent() {
 
   const [date, setDate] = useState<Date | null>(null);
   const [time, setTime] = useState<string | null>(null);
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    if (!date) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- bật skeleton ngay khi ngày thay đổi, trước khi giả lập gọi API
-    setIsLoading(true);
+  const serviceIds = appointment?.services.map((s) => s.serviceId) ?? [];
+  const { slots: availabilitySlots, isLoading, error: availabilityError } = useAvailability({
+    date,
+    serviceIds,
+    staffId: appointment?.staffId ?? null,
+  });
+  const slots: TimeSlot[] = availabilitySlots.map((s) => ({
+    time: formatTimeVN(new Date(s.startAt)),
+    available: true,
+  }));
+
+  function handleDateChange(nextDate: Date) {
+    setDate(nextDate);
     setTime(null);
-    const timer = setTimeout(() => {
-      setSlots(generateTimeSlots(date, appointment?.staffId ?? null));
-      setIsLoading(false);
-    }, 500);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+  }
 
   if (isLoadingAppointment) {
     return (
@@ -99,6 +100,15 @@ function RescheduleContent() {
       await rescheduleGuestAppointment(code, phone, startAt.toISOString());
       setDone(true);
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setTime(null);
+        showToast({
+          variant: "error",
+          title: "Khung giờ vừa được đặt bởi người khác",
+          description: "Vui lòng chọn lại khung giờ khác.",
+        });
+        return;
+      }
       showToast({
         variant: "error",
         title: "Đổi lịch thất bại",
@@ -114,14 +124,16 @@ function RescheduleContent() {
       <PageHeader title="Đổi lịch hẹn" description={`Chọn ngày giờ mới cho lịch hẹn ${appointment.code}.`} />
 
       <div className="mt-8 grid gap-6 sm:grid-cols-[auto_1fr]">
-        <DatePicker value={date} onChange={setDate} />
+        <DatePicker value={date} onChange={handleDateChange} />
         <div>
           <p className="text-label text-text">Khung giờ trống</p>
           <div className="mt-3">
-            {date ? (
-              <TimeSlotPicker slots={slots} value={time} onChange={setTime} isLoading={isLoading} />
-            ) : (
+            {!date ? (
               <p className="text-body-sm text-text-muted">Vui lòng chọn ngày để xem khung giờ trống.</p>
+            ) : availabilityError ? (
+              <ErrorState description={availabilityError} />
+            ) : (
+              <TimeSlotPicker slots={slots} value={time} onChange={setTime} isLoading={isLoading} />
             )}
           </div>
         </div>

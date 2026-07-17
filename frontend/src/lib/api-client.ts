@@ -10,6 +10,10 @@ const API_URL =
     ? (process.env.API_INTERNAL_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api")
     : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api");
 
+const CSRF_COOKIE = "vi_nail_csrf_token";
+const CSRF_HEADER = "x-csrf-token";
+const MUTATING_METHODS = new Set(["POST", "PATCH", "PUT", "DELETE"]);
+
 export class ApiError extends Error {
   status: number;
   details: unknown;
@@ -22,14 +26,30 @@ export class ApiError extends Error {
   }
 }
 
-function readToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem("vi-nail-auth-token");
+function readCsrfCookie(): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * The CSRF cookie is set alongside the refresh token (login/register/refresh) and cleared on
+ * logout, so its presence — readable since it's non-httpOnly by design — is a reliable signal
+ * that a session might still be refreshable. Guests who never logged in have no session to
+ * refresh; callers should skip the refresh round trip entirely rather than firing it blind.
+ */
+export function hasSessionCookie(): boolean {
+  return readCsrfCookie() !== null;
 }
 
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   body?: unknown;
+  /**
+   * Explicit Bearer token for the guest OTP booking-session flow, which is intentionally
+   * separate from the cookie-based login session (see stores/auth-store.tsx). Leave unset
+   * for authenticated user requests — the httpOnly session cookie is sent automatically.
+   */
   token?: string | null;
   query?: Record<string, string | number | boolean | undefined>;
 };
@@ -44,15 +64,20 @@ function buildUrl(path: string, query?: RequestOptions["query"]) {
   return API_URL.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const token = options.token !== undefined ? options.token : readToken();
+async function rawRequest<T>(path: string, options: RequestOptions): Promise<T> {
+  const method = options.method ?? "GET";
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
-  if (token) headers["Authorization"] = `Bearer ${token}`;
+  if (options.token) headers["Authorization"] = `Bearer ${options.token}`;
+  if (MUTATING_METHODS.has(method)) {
+    const csrf = readCsrfCookie();
+    if (csrf) headers[CSRF_HEADER] = csrf;
+  }
 
   const res = await fetch(buildUrl(path, options.query), {
-    method: options.method ?? "GET",
+    method,
     headers,
+    credentials: "include",
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   });
 
@@ -70,4 +95,30 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
+}
+
+let refreshInFlight: Promise<void> | null = null;
+
+function refreshSession(): Promise<void> {
+  refreshInFlight ??= rawRequest<void>("/auth/refresh", { method: "POST" }).finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  try {
+    return await rawRequest<T>(path, options);
+  } catch (err) {
+    const isAuthEndpoint = path.startsWith("/auth/");
+    if (err instanceof ApiError && err.status === 401 && !isAuthEndpoint && hasSessionCookie()) {
+      try {
+        await refreshSession();
+      } catch {
+        throw err;
+      }
+      return rawRequest<T>(path, options);
+    }
+    throw err;
+  }
 }

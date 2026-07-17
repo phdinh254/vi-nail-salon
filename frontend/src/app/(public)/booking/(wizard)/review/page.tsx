@@ -24,7 +24,7 @@ function buildStartAt(date: Date, time: string): string {
 
 export default function ReviewStepPage() {
   const router = useRouter();
-  const { state, selectedServices, totalPrice, totalDurationMinutes, setCreatedAppointment } = useBooking();
+  const { state, update, selectedServices, totalPrice, totalDurationMinutes, setCreatedAppointment } = useBooking();
   const { bookingToken } = useAuth();
   const { showToast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,6 +79,19 @@ export default function ReviewStepPage() {
       setCreatedAppointment(appointment);
       router.push("/booking/success");
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Someone else booked this slot between when it was fetched and now — the picked
+        // time is no longer valid. Clear it and send the guest back to re-fetch real
+        // availability rather than letting them retry the same stale slot.
+        update("time", null);
+        showToast({
+          variant: "error",
+          title: "Khung giờ vừa được đặt bởi người khác",
+          description: "Vui lòng chọn lại khung giờ khác.",
+        });
+        router.push("/booking/schedule");
+        return;
+      }
       showToast({
         variant: "error",
         title: "Đặt lịch thất bại",

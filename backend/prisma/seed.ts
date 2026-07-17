@@ -207,6 +207,25 @@ async function main() {
     },
   });
 
+  // Structured working hours for the availability engine — kept in sync by hand with the
+  // free-text `shifts` above (see WorkingHour model doc comment for why this can't be derived
+  // automatically from that text). dayOfWeek: 0=Sunday..6=Saturday.
+  async function seedWorkingHours(staffId: string, hours: { dayOfWeek: number; startMinute: number; endMinute: number }[]) {
+    const existing = await prisma.workingHour.findFirst({ where: { staffId } });
+    if (existing) return;
+    await prisma.workingHour.createMany({ data: hours.map((h) => ({ staffId, ...h })) });
+  }
+
+  const MON_TO_FRI = [1, 2, 3, 4, 5];
+  await seedWorkingHours(staffLan.id, [
+    ...MON_TO_FRI.map((dayOfWeek) => ({ dayOfWeek, startMinute: 9 * 60, endMinute: 18 * 60 })),
+    { dayOfWeek: 6, startMinute: 9 * 60, endMinute: 20 * 60 },
+  ]);
+  await seedWorkingHours(
+    staffBich.id,
+    MON_TO_FRI.map((dayOfWeek) => ({ dayOfWeek, startMinute: 11 * 60, endMinute: 20 * 60 })),
+  );
+
   const nailDesign = await prisma.nailDesign.upsert({
     where: { id: 'seed-nd-nude-toi-gian' },
     update: {},

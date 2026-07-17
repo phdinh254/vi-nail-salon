@@ -40,7 +40,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     try {
       const result = await login({ phone, password });
-      setSession(result.accessToken, result.user);
+      setSession(result.user);
       router.push(ROLE_HOME[result.user.role] ?? "/");
     } catch (err) {
       showToast({

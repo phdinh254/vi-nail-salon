@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import * as cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
 
 function resolveCorsOrigins(): string[] | boolean {
@@ -30,6 +31,7 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
+  app.use(cookieParser());
   app.enableCors({ origin: corsOrigins, credentials: true });
   app.useGlobalPipes(
     new ValidationPipe({
@@ -41,8 +43,8 @@ async function bootstrap() {
   await app.listen(process.env.PORT ?? 3001);
 }
 
-bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
-  console.error('Không thể khởi động backend:', err.message);
+bootstrap().catch((err: unknown) => {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error('Không thể khởi động backend:', message);
   process.exit(1);
 });

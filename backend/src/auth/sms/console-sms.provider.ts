@@ -7,21 +7,27 @@ import type { SmsProvider } from './sms-provider.interface';
  * KHÔNG gửi tin nhắn thật. Khi có tài khoản thật (vd. eSMS, Speedsms, Zalo
  * ZNS), tạo provider mới implement SmsProvider và đổi binding trong
  * AuthModule — phần còn lại của hệ thống không cần thay đổi.
+ *
+ * Production has NO way to opt into this provider — no environment flag, no override. If this
+ * class is ever instantiated with NODE_ENV=production, the process refuses to start. That's
+ * deliberate: an OTP code logged to server output in production is a credential leak, and the
+ * fix is always "configure a real SmsProvider," never "silence the safety check."
  */
 @Injectable()
 export class ConsoleSmsProvider implements SmsProvider {
   private readonly logger = new Logger(ConsoleSmsProvider.name);
 
   constructor() {
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_CONSOLE_SMS_IN_PROD !== 'true') {
+    if (process.env.NODE_ENV === 'production') {
       throw new Error(
-        'ConsoleSmsProvider in chọn mã OTP ra log — không được dùng ở production. ' +
-          'Cấu hình một SmsProvider gửi SMS/Zalo ZNS thật, hoặc đặt ALLOW_CONSOLE_SMS_IN_PROD=true nếu đây thực sự là môi trường demo/UAT nội bộ, có kiểm soát truy cập log chặt chẽ.',
+        'ConsoleSmsProvider in mã OTP ra log — tuyệt đối không được chạy ở production dưới bất kỳ hình thức nào. ' +
+          'Cấu hình một SmsProvider gửi SMS/Zalo ZNS thật và đổi binding trong AuthModule trước khi triển khai production.',
       );
     }
   }
 
-  async sendOtp(phone: string, code: string): Promise<void> {
+  sendOtp(phone: string, code: string): Promise<void> {
     this.logger.warn(`[DEV ONLY] Mã OTP cho ${phone}: ${code} (chưa gửi SMS thật)`);
+    return Promise.resolve();
   }
 }

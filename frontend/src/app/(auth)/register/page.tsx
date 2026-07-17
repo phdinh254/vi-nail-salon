@@ -40,7 +40,7 @@ export default function RegisterPage() {
     setIsSubmitting(true);
     try {
       const result = await register({ name: values.name, phone: values.phone, password: values.password });
-      setSession(result.accessToken, result.user);
+      setSession(result.user);
       router.push("/customer/dashboard");
     } catch (err) {
       showToast({

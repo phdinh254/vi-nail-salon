@@ -30,8 +30,8 @@ export function DashboardTopbar({
   const router = useRouter();
   const { clearSession } = useAuth();
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await clearSession();
     router.push("/login");
   }
 

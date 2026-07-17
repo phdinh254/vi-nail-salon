@@ -1,0 +1,73 @@
+name: vi-nail-salon-test
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: vi-nail-salon-postgres-test
+    restart: "no"
+    environment:
+      POSTGRES_DB: vi_nail_salon_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "5433:5432"
+    volumes:
+      - vi_nail_salon_postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vi_nail_salon_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  backend:
+    build:
+      context: ../backend
+    container_name: vi-nail-salon-backend-test
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vi_nail_salon_test?schema=public
+      JWT_SECRET: test-only-jwt-secret-not-for-production
+      CORS_ORIGIN: http://localhost:3010
+      TEST_SECRET: ${TEST_SECRET:-change-me-test-secret}
+      NODE_ENV: test
+      PORT: 3001
+      TZ: Asia/Ho_Chi_Minh
+    command: sh -c "npx prisma migrate deploy && node dist/main"
+    ports:
+      - "3011:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3011/api
+    container_name: vi-nail-salon-frontend-test
+    restart: "no"
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      API_INTERNAL_URL: http://backend:3001/api
+    ports:
+      - "3010:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  vi_nail_salon_postgres_test_data:

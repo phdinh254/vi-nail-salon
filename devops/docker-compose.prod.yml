@@ -1,3 +1,5 @@
+name: vi-nail-salon-prod
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -24,10 +26,10 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
       NODE_ENV: production
-      # Chưa tích hợp nhà cung cấp SMS/Zalo ZNS thật — mặc định backend sẽ từ chối khởi động ở
-      # production để tránh lộ mã OTP ra log. Chỉ đặt true cho môi trường demo/UAT nội bộ có
-      # kiểm soát truy cập log chặt chẽ; PHẢI thay bằng SmsProvider thật trước khi ra mắt thật.
-      ALLOW_CONSOLE_SMS_IN_PROD: ${ALLOW_CONSOLE_SMS_IN_PROD:-false}
+      # Chưa tích hợp nhà cung cấp SMS/Zalo ZNS thật. Backend sẽ TỪ CHỐI khởi động ở production
+      # cho đến khi một SmsProvider thật được cấu hình — không có biến môi trường nào override
+      # được việc này (đã cố tình loại bỏ ALLOW_CONSOLE_SMS_IN_PROD). Đây là hành vi mong đợi,
+      # không phải lỗi cần "fix" bằng cách bật lại console log OTP.
       PORT: 3001
       TZ: Asia/Ho_Chi_Minh
     command: sh -c "npx prisma migrate deploy && npm run start:prod"

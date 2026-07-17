@@ -1,3 +1,5 @@
+name: vi-nail-salon-dev
+
 services:
   postgres:
     image: postgres:17-alpine

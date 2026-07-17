@@ -12,8 +12,7 @@ import { useAuth } from "@/stores/auth-store";
 import { useApi } from "@/hooks/use-api";
 import { listMyAppointments } from "@/services/appointment.service";
 import { listCustomerNotifications } from "@/services/notification.service";
-import { getFavoriteDesignIds } from "@/fixtures/favorites";
-import { nailDesigns } from "@/fixtures/nail-designs";
+import { listFavorites } from "@/services/catalog.service";
 import { formatDateVN, formatTimeVN } from "@/utils/format";
 
 const upcomingStatuses = ["PENDING_CONFIRMATION", "CONFIRMED", "CHECKED_IN", "IN_SERVICE"];
@@ -28,14 +27,14 @@ export default function CustomerDashboardPage() {
   const { data: notifications, isLoading: isLoadingNotifications } = useApi(listCustomerNotifications, [], {
     enabled: Boolean(user),
   });
+  const { data: favorites, isLoading: isLoadingFavorites } = useApi(listFavorites, [], {
+    enabled: Boolean(user),
+  });
 
   const allAppointments = appointments ?? [];
   const upcoming = allAppointments.filter((a) => upcomingStatuses.includes(a.status));
   const history = allAppointments.filter((a) => a.status === "COMPLETED").slice(0, 2);
-  // Mục yêu thích chưa có API backend (chỉ có model Prisma, chưa có controller) —
-  // tạm giữ dữ liệu fixture cho phần này, xem ghi chú tại customer/favorites/page.tsx.
-  const favoriteIds = user ? getFavoriteDesignIds(user.phone) : [];
-  const favoriteDesigns = nailDesigns.filter((d) => favoriteIds.includes(d.id)).slice(0, 3);
+  const favoriteDesigns = (favorites ?? []).slice(0, 3);
   const recentNotifications = (notifications ?? []).slice(0, 3);
 
   return (
@@ -84,7 +83,13 @@ export default function CustomerDashboardPage() {
             Xem tất cả
           </Link>
         </div>
-        {favoriteDesigns.length === 0 ? (
+        {isLoadingFavorites ? (
+          <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
+            <Skeleton className="aspect-square w-full" />
+            <Skeleton className="aspect-square w-full" />
+            <Skeleton className="aspect-square w-full" />
+          </div>
+        ) : favoriteDesigns.length === 0 ? (
           <div className="mt-4">
             <EmptyState title="Chưa có mẫu nail yêu thích" actionLabel="Khám phá bộ sưu tập" actionHref="/nail-gallery" />
           </div>

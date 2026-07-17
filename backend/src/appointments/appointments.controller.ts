@@ -10,7 +10,7 @@ import {
   Query,
   UnauthorizedException,
 } from '@nestjs/common';
-import { AppointmentStatus, CreatedVia, UserRole } from '@prisma/client';
+import { AppointmentStatus, UserRole } from '@prisma/client';
 import { AppointmentsService } from './appointments.service';
 import { AuthService } from '../auth/auth.service';
 import { CreateGuestAppointmentDto } from './dto/create-guest-appointment.dto';
@@ -73,8 +73,7 @@ export class AppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateStaffAppointmentDto,
   ) {
-    const createdVia = user.role === UserRole.ADMIN ? CreatedVia.ADMIN : CreatedVia.STAFF;
-    return this.appointmentsService.createFromStaff(dto, createdVia);
+    return this.appointmentsService.createFromStaff(dto, user);
   }
 
   @Roles(UserRole.CUSTOMER)

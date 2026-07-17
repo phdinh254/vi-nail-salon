@@ -9,6 +9,8 @@ import { AppointmentStatus, CreatedVia, Prisma, UserRole } from '@prisma/client'
 import { randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { NON_BLOCKING_APPOINTMENT_STATUSES } from '../common/constants';
+import { isValidStatusTransition } from './status-transitions';
 import type { CreateGuestAppointmentDto } from './dto/create-guest-appointment.dto';
 import type { CreateStaffAppointmentDto } from './dto/create-staff-appointment.dto';
 import type { AuthenticatedUser } from '../auth/jwt.types';
@@ -21,17 +23,6 @@ const appointmentInclude = {
 };
 
 const CANCELLABLE_STATUSES: AppointmentStatus[] = ['PENDING_CONFIRMATION', 'CONFIRMED'];
-const NON_BLOCKING_STATUSES: AppointmentStatus[] = ['CANCELLED', 'NO_SHOW'];
-
-const STATUS_TRANSITIONS: Record<AppointmentStatus, AppointmentStatus[]> = {
-  PENDING_CONFIRMATION: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['CHECKED_IN', 'CANCELLED', 'NO_SHOW'],
-  CHECKED_IN: ['IN_SERVICE', 'CANCELLED'],
-  IN_SERVICE: ['COMPLETED'],
-  COMPLETED: [],
-  NO_SHOW: [],
-  CANCELLED: [],
-};
 
 @Injectable()
 export class AppointmentsService {
@@ -82,6 +73,29 @@ export class AppointmentsService {
   }
 
   /** Chặn trùng lịch: cùng nhân viên, khoảng thời gian giao nhau, trạng thái vẫn còn hiệu lực. */
+  /**
+   * The app-level pre-check + Serializable transaction (P2034) catches almost every race, but
+   * the `appointments_no_staff_overlap` EXCLUDE constraint (see migration 20260716182339) is
+   * the actual final safety net — enforced by Postgres itself, unbypassable by any code path.
+   * Prisma has no typed error code for exclusion-constraint violations: they surface as a
+   * PrismaClientUnknownRequestError whose message embeds the raw Postgres error, including
+   * code 23P01 (exclusion_violation) and the constraint name. Detect via the constraint name
+   * rather than parsing the SQLSTATE out of free text, since that's the stable, intentional
+   * part of the message. Map both cases to the same friendly 409 — never leak the raw DB error.
+   */
+  private rethrowAsConflictIfBookingRace(err: unknown): never {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && (err.code === 'P2034' || err.code === 'P2004')) {
+      throw new ConflictException('Khung giờ vừa được đặt bởi yêu cầu khác, vui lòng thử lại.');
+    }
+    if (
+      err instanceof Prisma.PrismaClientUnknownRequestError &&
+      err.message.includes('appointments_no_staff_overlap')
+    ) {
+      throw new ConflictException('Khung giờ vừa được đặt bởi yêu cầu khác, vui lòng thử lại.');
+    }
+    throw err;
+  }
+
   private async assertNoStaffConflict(
     tx: Prisma.TransactionClient,
     staffId: string,
@@ -93,7 +107,7 @@ export class AppointmentsService {
       where: {
         staffId,
         id: excludeAppointmentId ? { not: excludeAppointmentId } : undefined,
-        status: { notIn: NON_BLOCKING_STATUSES },
+        status: { notIn: NON_BLOCKING_APPOINTMENT_STATUSES },
         startAt: { lt: endAt },
         endAt: { gt: startAt },
       },
@@ -108,6 +122,7 @@ export class AppointmentsService {
     dto: CreateGuestAppointmentDto,
     createdVia: CreatedVia = CreatedVia.GUEST,
     customerId?: string,
+    createdByUserId?: string,
   ) {
     const { lines, totalPrice, totalDurationMinutes } = await this.buildServiceLines(dto.serviceIds);
     const staffId = await this.resolveStaffId(dto.staffId);
@@ -130,6 +145,7 @@ export class AppointmentsService {
               endAt,
               staffId,
               customerId,
+              createdByUserId,
               customerName: dto.customerName,
               customerPhone: phone,
               nailDesignId: dto.nailDesignId,
@@ -147,15 +163,37 @@ export class AppointmentsService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
-        throw new ConflictException('Khung giờ vừa được đặt bởi yêu cầu khác, vui lòng thử lại.');
-      }
-      throw err;
+      this.rethrowAsConflictIfBookingRace(err);
     }
   }
 
-  createFromStaff(dto: CreateStaffAppointmentDto, createdVia: CreatedVia) {
-    return this.createFromGuest(dto.customerPhone, dto, createdVia);
+  async createFromStaff(dto: CreateStaffAppointmentDto, actor: AuthenticatedUser) {
+    const createdVia = actor.role === UserRole.ADMIN ? CreatedVia.ADMIN : CreatedVia.STAFF;
+    // Link to an existing customer account when this phone already has one — never create a
+    // new login-capable account on the customer's behalf here (that would hand out a
+    // password-less/unclaimable account, which is worse than just leaving it phone-only like
+    // a normal guest booking).
+    const existingCustomer = await this.prisma.user.findFirst({
+      where: { phone: dto.customerPhone, role: UserRole.CUSTOMER },
+    });
+    const appointment = await this.createFromGuest(
+      dto.customerPhone,
+      dto,
+      createdVia,
+      existingCustomer?.id,
+      actor.id,
+    );
+
+    await this.auditLog.record({
+      actorId: actor.id,
+      actorName: actor.name,
+      actorRole: actor.role === UserRole.ADMIN ? 'ADMIN' : 'STAFF',
+      action: 'Tạo lịch hẹn hộ khách hàng',
+      resourceType: 'Lịch hẹn',
+      resourceLabel: appointment.code,
+    });
+
+    return appointment;
   }
 
   async findByCodeAndPhone(code: string, phone: string) {
@@ -205,7 +243,7 @@ export class AppointmentsService {
     actor?: AuthenticatedUser,
   ) {
     const appointment = await this.findById(id);
-    if (appointment.status !== status && !STATUS_TRANSITIONS[appointment.status].includes(status)) {
+    if (!isValidStatusTransition(appointment.status, status)) {
       throw new BadRequestException(
         `Không thể chuyển trạng thái từ ${appointment.status} sang ${status}.`,
       );
@@ -251,10 +289,7 @@ export class AppointmentsService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
-        throw new ConflictException('Khung giờ vừa được đặt bởi yêu cầu khác, vui lòng thử lại.');
-      }
-      throw err;
+      this.rethrowAsConflictIfBookingRace(err);
     }
   }
 
@@ -286,10 +321,7 @@ export class AppointmentsService {
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2034') {
-        throw new ConflictException('Khung giờ vừa được đặt bởi yêu cầu khác, vui lòng thử lại.');
-      }
-      throw err;
+      this.rethrowAsConflictIfBookingRace(err);
     }
   }
 

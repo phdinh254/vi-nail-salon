@@ -135,6 +135,21 @@ export async function getNailDesign(id: string): Promise<NailDesign | undefined>
   }
 }
 
+// ---- favorites (customer only) ----
+
+export async function listFavorites(): Promise<NailDesign[]> {
+  const raw = await apiRequest<BackendNailDesign[]>("/favorites");
+  return raw.map(mapNailDesign);
+}
+
+export async function addFavorite(nailDesignId: string): Promise<void> {
+  await apiRequest(`/favorites/${nailDesignId}`, { method: "POST" });
+}
+
+export async function removeFavorite(nailDesignId: string): Promise<void> {
+  await apiRequest(`/favorites/${nailDesignId}`, { method: "DELETE" });
+}
+
 // ---- promotions ----
 
 export async function listPromotions(): Promise<Promotion[]> {
@@ -216,7 +231,9 @@ const UI_NAIL_STYLE_TO_BACKEND: Record<NailDesignStyle, string> = {
   SEASONAL: "SEASONAL",
 };
 
-export async function createNailDesign(input: Omit<NailDesign, "id">): Promise<NailDesign> {
+export type NailDesignMutationInput = Omit<NailDesign, "id" | "serviceId"> & { serviceId?: string };
+
+export async function createNailDesign(input: NailDesignMutationInput): Promise<NailDesign> {
   const raw = await apiRequest<BackendNailDesign>("/nail-designs", {
     method: "POST",
     body: { ...input, style: UI_NAIL_STYLE_TO_BACKEND[input.style] },
@@ -226,7 +243,7 @@ export async function createNailDesign(input: Omit<NailDesign, "id">): Promise<N
 
 export async function updateNailDesign(
   id: string,
-  input: Partial<Omit<NailDesign, "id">>,
+  input: Partial<NailDesignMutationInput>,
 ): Promise<NailDesign> {
   const raw = await apiRequest<BackendNailDesign>(`/nail-designs/${id}`, {
     method: "PATCH",

@@ -13,13 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog } from "@/components/ui/dialog";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
-import { Field } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/providers/toast-provider";
 import { useApi } from "@/hooks/use-api";
 import { listAllAppointments, updateAppointmentStatus, assignStaff as assignStaffApi } from "@/services/appointment.service";
 import { listStaff } from "@/services/catalog.service";
 import { ApiError } from "@/lib/api-client";
+import { CreateAppointmentDialog } from "./create-appointment-dialog";
 import {
   APPOINTMENT_STATUSES,
   appointmentStatusLabel,
@@ -218,7 +217,11 @@ export function AdminAppointmentsClient() {
         </ol>
       </Dialog>
 
-      <CreateAppointmentDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateAppointmentDialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={() => appointmentsState.refetch()}
+      />
     </div>
   );
 }
@@ -243,39 +246,3 @@ function CalendarDayView({ appointments }: { appointments: Appointment[] }) {
   );
 }
 
-// LƯU Ý: Backend đã có endpoint POST /appointments/staff để tạo lịch hộ khách,
-// nhưng biểu mẫu này chưa thu thập dịch vụ/nhân viên/khung giờ nên vẫn giữ ở dạng
-// nháp minh họa (giới hạn đã biết) — cần bổ sung UI chọn dịch vụ và khung giờ để
-// gọi createStaffAppointment thật.
-function CreateAppointmentDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { showToast } = useToast();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-
-  return (
-    <Dialog open={open} onClose={onClose} title="Tạo lịch hộ khách" description="Dùng khi khách gọi điện hoặc đến trực tiếp đặt lịch.">
-      <div className="flex flex-col gap-4">
-        <Field id="create-name" label="Tên khách hàng" required>
-          <Input id="create-name" value={name} onChange={(e) => setName(e.target.value)} />
-        </Field>
-        <Field id="create-phone" label="Số điện thoại" required>
-          <Input id="create-phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-        </Field>
-        <p className="text-caption text-text-muted">
-          Chọn dịch vụ, nhân viên và khung giờ ở bước tiếp theo khi bổ sung biểu mẫu đầy đủ.
-        </p>
-        <Button
-          onClick={() => {
-            onClose();
-            showToast({ variant: "info", title: "Biểu mẫu tạo lịch đầy đủ đang được hoàn thiện", description: `${name} · ${phone}` });
-            setName("");
-            setPhone("");
-          }}
-          disabled={!name.trim() || !phone.trim()}
-        >
-          Tạo lịch hẹn
-        </Button>
-      </div>
-    </Dialog>
-  );
-}

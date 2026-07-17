@@ -4,10 +4,30 @@ import { useState } from "react";
 import { Heart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NailDesignCard } from "@/components/domain/nail-design-card";
+import { removeFavorite } from "@/services/catalog.service";
+import { useToast } from "@/components/providers/toast-provider";
 import type { NailDesign } from "@/types/nail-design";
 
 export function FavoritesClient({ initialDesigns }: { initialDesigns: NailDesign[] }) {
   const [designs, setDesigns] = useState(initialDesigns);
+  const { showToast } = useToast();
+
+  async function handleRemove(design: NailDesign) {
+    const previous = designs;
+    // Optimistic removal — roll back if the backend call fails so the list never silently
+    // drifts from what's actually saved.
+    setDesigns((prev) => prev.filter((d) => d.id !== design.id));
+    try {
+      await removeFavorite(design.id);
+    } catch {
+      setDesigns(previous);
+      showToast({
+        variant: "error",
+        title: "Không thể bỏ lưu mẫu nail",
+        description: "Vui lòng thử lại sau.",
+      });
+    }
+  }
 
   if (designs.length === 0) {
     return (
@@ -28,7 +48,7 @@ export function FavoritesClient({ initialDesigns }: { initialDesigns: NailDesign
           key={design.id}
           design={design}
           isFavorite
-          onToggleFavorite={() => setDesigns((prev) => prev.filter((d) => d.id !== design.id))}
+          onToggleFavorite={() => handleRemove(design)}
         />
       ))}
     </div>

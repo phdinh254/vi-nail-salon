@@ -22,17 +22,34 @@ model User {
   name         String
   passwordHash String
   role         UserRole
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
-  staffProfile  StaffProfile?
-  appointments  Appointment[]        @relation("CustomerAppointments")
-  notifications Notification[]
-  auditLogs     AuditLog[]
-  reviews       Review[]
-  favorites     FavoriteNailDesign[]
+  staffProfile        StaffProfile?
+  appointments        Appointment[]        @relation("CustomerAppointments")
+  createdAppointments Appointment[]        @relation("AppointmentsCreatedByStaff")
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  reviews             Review[]
+  favorites           FavoriteNailDesign[]
+  refreshTokens       RefreshToken[]
 
   @@map("users")
+}
+
+model RefreshToken {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash         String    @unique
+  expiresAt         DateTime  @db.Timestamptz(3)
+  revokedAt         DateTime? @db.Timestamptz(3)
+  replacedByTokenId String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([userId])
+  @@map("refresh_tokens")
 }
 
 // ---------- Services ----------
@@ -60,8 +77,8 @@ model Service {
   isFixedPrice     Boolean         @default(true)
   durationMinutes  Int
   isFeatured       Boolean         @default(false)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
 
   staff            StaffService[]
   nailDesigns      NailDesign[]
@@ -81,11 +98,12 @@ model StaffProfile {
   yearsExperience Int
   specialties     String[]
   isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
 
   services     StaffService[]
   shifts       StaffShift[]
+  workingHours WorkingHour[]
   appointments Appointment[]    @relation("StaffAppointments")
   timeOffs     TimeOffRequest[]
 
@@ -110,6 +128,23 @@ model StaffShift {
   time    String
 
   @@map("staff_shifts")
+}
+
+/// Structured working hours used by the availability engine. Kept separate from `StaffShift`
+/// (free-text, display-only — e.g. "Thứ Hai - Thứ Sáu" / "09:00 - 18:00") because that text
+/// isn't safely machine-parseable back into per-day ranges. `dayOfWeek` follows JS `Date#getDay()`
+/// convention: 0=Sunday..6=Saturday. `startMinute`/`endMinute` are local (Asia/Ho_Chi_Minh)
+/// minutes-since-midnight.
+model WorkingHour {
+  id          String       @id @default(cuid())
+  staffId     String
+  staff       StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+  startMinute Int
+  endMinute   Int
+
+  @@index([staffId, dayOfWeek])
+  @@map("working_hours")
 }
 
 // ---------- Nail designs ----------
@@ -142,7 +177,7 @@ model NailDesign {
   service     Service?          @relation(fields: [serviceId], references: [id])
   description String
   isNew       Boolean           @default(false)
-  createdAt   DateTime          @default(now())
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
 
   favorites    FavoriteNailDesign[]
   appointments Appointment[]
@@ -155,7 +190,7 @@ model FavoriteNailDesign {
   nailDesignId String
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   nailDesign   NailDesign @relation(fields: [nailDesignId], references: [id], onDelete: Cascade)
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
 
   @@id([userId, nailDesignId])
   @@map("favorite_nail_designs")
@@ -168,12 +203,12 @@ model Promotion {
   title         String
   description   String
   discountLabel String
-  validFrom     DateTime
-  validTo       DateTime
+  validFrom     DateTime @db.Timestamptz(3)
+  validTo       DateTime @db.Timestamptz(3)
   conditions    String[]
   isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
 
   @@map("promotions")
 }
@@ -201,12 +236,14 @@ model Appointment {
   id                   String            @id @default(cuid())
   code                 String            @unique
   status               AppointmentStatus @default(PENDING_CONFIRMATION)
-  startAt              DateTime
-  endAt                DateTime
+  startAt              DateTime          @db.Timestamptz(3)
+  endAt                DateTime          @db.Timestamptz(3)
   staffId              String?
   staff                StaffProfile?     @relation("StaffAppointments", fields: [staffId], references: [id])
   customerId           String?
   customer             User?             @relation("CustomerAppointments", fields: [customerId], references: [id])
+  createdByUserId      String?
+  createdByUser        User?             @relation("AppointmentsCreatedByStaff", fields: [createdByUserId], references: [id], onDelete: SetNull)
   customerName         String
   customerPhone        String
   nailDesignId         String?
@@ -217,8 +254,8 @@ model Appointment {
   totalDurationMinutes Int
   depositAmount        Int?
   createdVia           CreatedVia
-  createdAt            DateTime          @default(now())
-  updatedAt            DateTime          @updatedAt
+  createdAt            DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime          @updatedAt @db.Timestamptz(3)
 
   services          AppointmentService[]
   timeline          AppointmentTimelineEntry[]
@@ -250,7 +287,7 @@ model AppointmentTimelineEntry {
   appointment   Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   status        AppointmentStatus
   note          String?
-  at            DateTime          @default(now())
+  at            DateTime          @default(now()) @db.Timestamptz(3)
 
   @@map("appointment_timeline_entries")
 }
@@ -268,7 +305,7 @@ model Review {
   content       String
   serviceName   String
   isVerified    Boolean      @default(false)
-  createdAt     DateTime     @default(now())
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
 
   @@map("reviews")
 }
@@ -293,7 +330,7 @@ model Payment {
   amount        Int
   method        PaymentMethod
   status        PaymentStatus @default(PAID)
-  paidAt        DateTime      @default(now())
+  paidAt        DateTime      @default(now()) @db.Timestamptz(3)
 
   @@map("payments")
 }
@@ -314,7 +351,7 @@ model Notification {
   description String
   type        NotificationType
   isRead      Boolean          @default(false)
-  createdAt   DateTime         @default(now())
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
 
   @@map("notifications")
 }
@@ -336,7 +373,7 @@ model AuditLog {
   action        String
   resourceType  String
   resourceLabel String
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
 
   @@map("audit_logs")
 }
@@ -353,11 +390,11 @@ model TimeOffRequest {
   id        String        @id @default(cuid())
   staffId   String
   staff     StaffProfile  @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  startDate DateTime
-  endDate   DateTime
+  startDate DateTime      @db.Timestamptz(3)
+  endDate   DateTime      @db.Timestamptz(3)
   reason    String
   status    TimeOffStatus @default(PENDING)
-  createdAt DateTime      @default(now())
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
 
   @@map("time_off_requests")
 }
@@ -375,9 +412,9 @@ model OtpChallenge {
   codeHash   String
   purpose    OtpPurpose
   attempts   Int        @default(0)
-  expiresAt  DateTime
-  consumedAt DateTime?
-  createdAt  DateTime   @default(now())
+  expiresAt  DateTime   @db.Timestamptz(3)
+  consumedAt DateTime?  @db.Timestamptz(3)
+  createdAt  DateTime   @default(now()) @db.Timestamptz(3)
 
   @@index([phone, purpose])
   @@map("otp_challenges")
@@ -388,9 +425,9 @@ model GuestAccessToken {
   tokenHash     String      @unique
   appointmentId String
   appointment   Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
-  expiresAt     DateTime
-  usedAt        DateTime?
-  createdAt     DateTime    @default(now())
+  expiresAt     DateTime    @db.Timestamptz(3)
+  usedAt        DateTime?   @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
 
   @@map("guest_access_tokens")
 }
