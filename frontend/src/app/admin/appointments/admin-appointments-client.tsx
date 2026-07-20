@@ -19,6 +19,7 @@ import { listAllAppointments, updateAppointmentStatus, assignStaff as assignStaf
 import { listStaff } from "@/services/catalog.service";
 import { ApiError } from "@/lib/api-client";
 import { CreateAppointmentDialog } from "./create-appointment-dialog";
+import { CompleteAppointmentDialog } from "./complete-appointment-dialog";
 import {
   APPOINTMENT_STATUSES,
   appointmentStatusLabel,
@@ -38,6 +39,7 @@ export function AdminAppointmentsClient() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [view, setView] = useState("list");
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [completeTarget, setCompleteTarget] = useState<Appointment | null>(null);
   const [historyTarget, setHistoryTarget] = useState<Appointment | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
@@ -125,6 +127,12 @@ export function AdminAppointmentsClient() {
               : []),
             ...(a.status === "CONFIRMED"
               ? [{ label: "Check-in khách", onSelect: () => updateStatus(a.id, "CHECKED_IN" as AppointmentStatus, "Đã check-in") }]
+              : []),
+            ...(a.status === "CHECKED_IN"
+              ? [{ label: "Bắt đầu phục vụ", onSelect: () => updateStatus(a.id, "IN_SERVICE" as AppointmentStatus, "Đã bắt đầu phục vụ") }]
+              : []),
+            ...(a.status === "IN_SERVICE"
+              ? [{ label: "Hoàn thành & ghi nhận thanh toán", onSelect: () => setCompleteTarget(a) }]
               : []),
             ...(["PENDING_CONFIRMATION", "CONFIRMED"].includes(a.status)
               ? [{ label: "Hủy lịch hẹn", onSelect: () => setCancelTarget(a), destructive: true }]
@@ -221,6 +229,12 @@ export function AdminAppointmentsClient() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onCreated={() => appointmentsState.refetch()}
+      />
+
+      <CompleteAppointmentDialog
+        appointment={completeTarget}
+        onClose={() => setCompleteTarget(null)}
+        onCompleted={() => appointmentsState.refetch()}
       />
     </div>
   );

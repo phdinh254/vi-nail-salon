@@ -8,8 +8,10 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { SMS_PROVIDER } from './sms/sms-provider.interface';
 import { ConsoleSmsProvider } from './sms/console-sms.provider';
 import { TestSmsProvider } from './sms/test.sms-provider';
+import { EsmsProvider } from './sms/esms.provider';
 
 const isTestEnv = process.env.NODE_ENV === 'test';
+const isProdEnv = process.env.NODE_ENV === 'production';
 
 @Module({
   imports: [
@@ -28,7 +30,9 @@ const isTestEnv = process.env.NODE_ENV === 'test';
     JwtStrategy,
     ...(isTestEnv
       ? [TestSmsProvider, { provide: SMS_PROVIDER, useExisting: TestSmsProvider }]
-      : [{ provide: SMS_PROVIDER, useClass: ConsoleSmsProvider }]),
+      : isProdEnv
+        ? [{ provide: SMS_PROVIDER, useClass: EsmsProvider }]
+        : [{ provide: SMS_PROVIDER, useClass: ConsoleSmsProvider }]),
   ],
   exports: [AuthService, ...(isTestEnv ? [TestSmsProvider] : [])],
 })

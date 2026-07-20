@@ -38,14 +38,18 @@ Key variables:
 - `CORS_ORIGIN` — comma-separated list of origins allowed to call the API.
   Backend **fails to start** if this is missing *and* `NODE_ENV=production`;
   in development it defaults to `http://localhost:3000`.
-- **SMS provider** — the project has no real SMS/Zalo ZNS provider yet; OTP
-  codes are logged to the backend console (`ConsoleSmsProvider`), which is
-  fine for development but a credential leak in production. The backend
-  **unconditionally refuses to start** with `NODE_ENV=production` while
-  `ConsoleSmsProvider` is the active provider — there is no environment
-  variable or flag that overrides this. Implement a real provider
-  (`backend/src/auth/sms/`, implementing the `SmsProvider` interface) and
-  switch the binding in `AuthModule` before deploying to production.
+- **SMS provider** — in development OTP codes are logged to the backend
+  console (`ConsoleSmsProvider`), which would be a credential leak in
+  production, so the backend **unconditionally refuses to start** with
+  `NODE_ENV=production` while `ConsoleSmsProvider` is the active provider —
+  there is no environment variable or flag that overrides this.
+  `NODE_ENV=production` instead binds `EsmsProvider`
+  (`backend/src/auth/sms/esms.provider.ts`), which sends real OTP SMS via
+  [eSMS.vn](https://esms.vn)'s OTP channel. Set `ESMS_API_KEY` and
+  `ESMS_SECRET_KEY` (from the eSMS dashboard) before deploying to
+  production; `ESMS_BRANDNAME` is optional. To switch to a different
+  provider (e.g. Zalo ZNS), implement `SmsProvider`
+  (`backend/src/auth/sms/`) and change the binding in `AuthModule`.
 - `NEXT_PUBLIC_API_URL` (frontend) — base URL the **browser** uses to call
   the API. Baked in at Docker build time via `--build-arg`.
 
@@ -108,8 +112,8 @@ Before running in production:
 - Set `JWT_SECRET` to a strong random value — the example default
   (`change-me`) is for local development only.
 - Set `CORS_ORIGIN` to your real frontend origin(s).
-- Integrate a real SMS/Zalo ZNS provider before going live (see above) — the
-  backend will not start in production without one, by design.
+- Set `ESMS_API_KEY` / `ESMS_SECRET_KEY` (see above) — the backend will not
+  start in production without a real SMS provider configured, by design.
 - The frontend image bakes `NEXT_PUBLIC_API_URL=/api` at build time so the
   browser calls the API through the `nginx` reverse proxy on the same
   origin (avoids CORS entirely for browser traffic). Server-side rendering
@@ -210,10 +214,10 @@ cat backup.sql | docker compose -f devops/docker-compose.dev.yml exec -T postgre
 - **Backend crash-loops immediately with a `CORS_ORIGIN`/`JWT_SECRET`
   error** — the corresponding env var is missing. Check `.env` and that you
   passed `--env-file .env` to `docker compose`.
-- **Backend crash-loops with a `ConsoleSmsProvider` error** — this is
-  expected with `NODE_ENV=production` until a real SMS/Zalo ZNS provider is
-  implemented and wired into `AuthModule` (see Environment configuration
-  above). There is no environment variable that silences this check.
+- **Backend crash-loops with a `ConsoleSmsProvider` error** — `NODE_ENV=production`
+  requires `ESMS_API_KEY`/`ESMS_SECRET_KEY` to be set so `EsmsProvider` can bind
+  (see Environment configuration above). There is no environment variable that
+  silences this check.
 - **`docker compose up` warns `"POSTGRES_USER" variable is not set"` and the
   backend can't authenticate to Postgres** — you forgot `--env-file .env`.
 - **Frontend container is `unhealthy`** — rebuild the frontend image; older
@@ -223,6 +227,8 @@ cat backup.sql | docker compose -f devops/docker-compose.dev.yml exec -T postgre
   Docker image** — a page doing a build-time server fetch needs
   `export const dynamic = "force-dynamic"` so it renders per-request instead
   of at build time (when no backend is reachable yet).
-- **OTP not received** — no real SMS provider is configured; the code is
-  logged by the backend (`docker compose ... logs backend | grep OTP`), not
-  sent as an actual SMS.
+- **OTP not received in development** — `ConsoleSmsProvider` is active
+  outside production; the code is logged by the backend
+  (`docker compose ... logs backend | grep OTP`), not sent as an actual SMS.
+  In production, check `ESMS_API_KEY`/`ESMS_SECRET_KEY` are correct and the
+  eSMS.vn account has OTP brandname credit.
