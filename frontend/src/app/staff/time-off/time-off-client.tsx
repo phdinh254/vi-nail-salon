@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/components/providers/toast-provider";
 import { requestTimeOff } from "@/services/time-off.service";
 import { ApiError } from "@/lib/api-client";
-import { timeOffStatusLabel, type TimeOffRequest } from "@/fixtures/time-off";
+import { timeOffStatusLabel, type TimeOffRequest } from "@/types/time-off";
 import { formatDateShortVN } from "@/utils/format";
 
 const statusTone = { PENDING: "warning", APPROVED: "success", REJECTED: "error" } as const;

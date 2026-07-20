@@ -1,7 +1,7 @@
 import type { AuthUser } from "@/stores/auth-store";
-import type { DemoSession } from "@/fixtures/session";
+import type { DisplaySession } from "@/types/session";
 
-export function toDemoSession(user: AuthUser, title?: string): DemoSession {
+export function toDemoSession(user: AuthUser, title?: string): DisplaySession {
   const initials = user.name
     .split(" ")
     .filter(Boolean)

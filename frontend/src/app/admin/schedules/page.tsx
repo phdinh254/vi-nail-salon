@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useApi } from "@/hooks/use-api";
 import { listStaff } from "@/services/catalog.service";
 import { listAllTimeOff } from "@/services/time-off.service";
-import { timeOffStatusLabel } from "@/fixtures/time-off";
+import { timeOffStatusLabel } from "@/types/time-off";
 import { formatDateShortVN } from "@/utils/format";
 
 function initialsOf(name: string) {

@@ -2,7 +2,7 @@ import { DashboardSidebar } from "@/components/layout/dashboard-sidebar";
 import { DashboardTopbar } from "@/components/layout/dashboard-topbar";
 import { MobileBottomNavigation } from "@/components/layout/mobile-bottom-navigation";
 import type { NavItem } from "@/components/layout/dashboard-nav-config";
-import type { DemoSession } from "@/fixtures/session";
+import type { DisplaySession } from "@/types/session";
 
 export function DashboardShell({
   session,
@@ -13,7 +13,7 @@ export function DashboardShell({
   notificationsHref,
   children,
 }: {
-  session: DemoSession;
+  session: DisplaySession;
   roleLabel: string;
   sidebarItems: NavItem[];
   mobileNavItems?: NavItem[];

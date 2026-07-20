@@ -10,7 +10,7 @@ import { Drawer } from "@/components/ui/drawer";
 import { DropdownMenu } from "@/components/ui/dropdown-menu";
 import { Logo } from "@/components/layout/logo";
 import type { NavItem } from "@/components/layout/dashboard-nav-config";
-import type { DemoSession } from "@/fixtures/session";
+import type { DisplaySession } from "@/types/session";
 import { useAuth } from "@/stores/auth-store";
 import { cn } from "@/utils/cn";
 
@@ -20,7 +20,7 @@ export function DashboardTopbar({
   notificationCount = 0,
   notificationsHref,
 }: {
-  session: DemoSession;
+  session: DisplaySession;
   items: NavItem[];
   notificationCount?: number;
   notificationsHref?: string;

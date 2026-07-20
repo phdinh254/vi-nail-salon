@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/api-client";
-import type { TimeOffRequest } from "@/fixtures/time-off";
+import type { TimeOffRequest } from "@/types/time-off";
 
 export async function listMyTimeOff(): Promise<TimeOffRequest[]> {
   return apiRequest<TimeOffRequest[]>("/time-off/me");
